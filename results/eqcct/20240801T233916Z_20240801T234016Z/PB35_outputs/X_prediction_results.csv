@@ -1,0 +1,2 @@
+file_name,network,station,instrument_type,station_lat,station_lon,station_elv,p_arrival_time,p_probability,s_arrival_time,s_probability
+PB35,0 ,PB35,0 ,0,0,0,2024-08-01 23:39:27.650000,0.906,2024-08-01 23:39:28.620000,0.885
