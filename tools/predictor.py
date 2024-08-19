@@ -18,8 +18,8 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 import tensorflow as tf
 #tf.config.optimizer.set_jit(True)
-tf.config.threading.set_intra_op_parallelism_threads(3)
-tf.config.threading.set_inter_op_parallelism_threads(3)
+tf.config.threading.set_intra_op_parallelism_threads(12)
+tf.config.threading.set_inter_op_parallelism_threads(8)
 import warnings
 warnings.filterwarnings("ignore")
 from silence_tensorflow import silence_tensorflow
@@ -450,7 +450,7 @@ def load_model(input_modelP, input_modelS, log_file="results/logs/model.log"):
     print(f"[{datetime.now()}] Loading EQCCT model. Log file: {log_file}")
     
     with open(log_file, mode="w", buffering=1, encoding='utf-8') as log:
-        log.write(f"*** Loading the model ...\n")
+        log.write(f"*** Loading the model ...")
 
         # Model CCT
         inputs = tf.keras.layers.Input(shape=input_shape,name='input')
@@ -480,7 +480,7 @@ def load_model(input_modelP, input_modelS, log_file="results/logs/model.log"):
         with redirect_stdout(summary_output):
             model.summary()
         log.write(str(summary_output.getvalue()))
-        log.write('\n')
+        log.write('')
 
         sgd = tf.keras.optimizers.Adam()
         model.compile(optimizer=sgd,
@@ -569,50 +569,51 @@ def mseed_predictor(stream=None,
 
     with open(log_file, mode="w", buffering=1) as log:
         if not model:
-            log.write(f"[{datetime.now()}] Please provide a model for predictions.\n")
+            log.write(f"[{datetime.now()}] Please provide a model for predictions.")
             sys.exit()
 
         out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
         if os.path.isdir(out_dir):
-            log.write(f"*** {out_dir} already exists!\n")
+            log.write(f"*** {out_dir} already exists!")
             if overwrite == True:
                 inp = "y"
-                log.write(f"[{datetime.now()}] Overwriting your previous results.\n")
+                log.write(f"[{datetime.now()}] Overwriting your previous results.")
             else:
                 inp = input(" --> Type (Yes or y) to create a new empty directory! This will erase your previous results so make a copy if you want them.")
             if inp.lower() in ["yes", "y"]:
                 shutil.rmtree(out_dir)  
                 os.makedirs(out_dir) 
             else:
-                log.write("Okay.\n")
+                log.write("Okay.")
                 return
         
         try:
             station_list = stations2use
             station_list = sorted(set(station_list))
         except Exception as exp:
-            log.write(f"{exp}\n")
+            log.write(f"{exp}")
             return
 
-        log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.\n")
+        log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
         
         # Filter stations, pending
         # if stations2use:
         #     station_list = [x for x in station_list if x in stations2use]
-        #     log.write(f"[{datetime.now()}] Using {len(station_list)} station(s) after filtering.\n")
+        #     log.write(f"[{datetime.now()}] Using {len(station_list)} station(s) after filtering.")
         
-        tasks = [[stream, f"({i+1}/{len(station_list)})", station_list[i], out_dir, args, model] for i in range(len(station_list))]
+        tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], out_dir, args, model] for i in range(len(station_list))]
 
         if not tasks:
             return
         #parallel_predict(tasks[0])
 
-        with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
+        # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(parallel_predict, task) for task in tasks]
             for future in as_completed(futures):
                 log_entry = future.result()
-                log.write(log_entry + "\n")
-        log.write("------- END OF FILE -------\n")
+                log.write(log_entry + "")
+        log.write("------- END OF FILE -------")
 
 
 def parallel_predict(predict_args):
@@ -636,18 +637,19 @@ def parallel_predict(predict_args):
                             's_arrival_time',
                             's_probability'])  
     csvPr_gen.flush()
-    #print(f"[{datetime.now()}] Started working on {st}...\n")
+    #print(f"[{datetime.now()}] Started working on {st}...")
     
     start_Predicting = time.time()  
     time_slots, comp_types = [], []
     
     # log.write('============ Station {} has {} chunks of data.'.format(st, len(uni_list)), flush=True)
-    #log.write(f"{f}\n")
+    #log.write(f"{f}")
     # try:
     meta, time_slots, comp_types, data_set = _readnparray(stream, args, time_slots, comp_types, st)
     # except: #InternalMSEEDError:
         # return f"[{datetime.now()}] {pos} {st}: FAILED the prediction (reading mSEED)."
 
+    print(st)
     print(data_set)
     batch_sizes = [args['batch_size'], 500, 250, 100, 50, 10, 5, 1]
     i = 0
@@ -678,8 +680,8 @@ def parallel_predict(predict_args):
         # dd = pd.read_csv(os.path.join(save_dir,'X_prediction_results.csv'))
         #print(f"[{datetime.now()}] {pos} {st}: Finished the prediction in {round(delta,2)}s.")
         return f"[{datetime.now()}] {pos} {st}: Finished the prediction in {round(delta,2)}s."
-        # log.write(f'*** Detected: '+str(len(dd))+' events.\n')
-        #log.write(f'*** Wrote the results into --> {str(save_dir)}\n')
+        # log.write(f'*** Detected: '+str(len(dd))+' events.')
+        #log.write(f'*** Wrote the results into --> {str(save_dir)}')
         # except:
         #     if i >= len(batch_sizes):
         #         return f"[{datetime.now()}] {pos} {st}: FAILED the prediction."
@@ -716,6 +718,8 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
             st=_resampling(st)  
     
     st.trim(min([tr.stats.starttime for tr in st]), max([tr.stats.endtime for tr in st]), pad=True, fill_value=0)
+
+
     start_time = st[0].stats.starttime
     end_time = st[0].stats.endtime
 
