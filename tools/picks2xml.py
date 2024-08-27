@@ -17,7 +17,7 @@ import sys
 
 def main_picks(input_file='picks.csv', output_file=None, min_prob_p=0.6,
                min_prob_s=0.5,
-               dt=3000, ai='pnet'):
+               dt=3000, ai='pnet', thr_dict=0.001):
     """Transform PhaseNet picks.csv file into Seiscomp XML file
 
     Parameters
@@ -38,13 +38,10 @@ def main_picks(input_file='picks.csv', output_file=None, min_prob_p=0.6,
     """
 
     # Obtaining list of Picks objects from file
-    try:
-        if ai == 'pnet':
-            pick_list = read_picks(input_file, dt, min_prob_p, min_prob_s)
-        elif ai in ('eqt', 'eqcc', 'eqcctps', 'eqcct'):
-            pick_list = prepare_eqt(input_file, ai)
-    except:
-        return
+    # try:
+    pick_list = prepare_eqt(input_file, ai, thr_dict)
+    # except:
+    #     return
 
     # Creating xml text
     xml_text = picks2xml(pick_list)
@@ -62,7 +59,7 @@ def main_picks(input_file='picks.csv', output_file=None, min_prob_p=0.6,
     # print(f'\nOutput file: {output_file}')
 
 
-def prepare_eqt(input_dir, ai):
+def prepare_eqt(input_dir, ai, thr_dict):
     """Merge X_prediction_results.csv files of each station in a list of Picks objects
 
     Parameters
@@ -111,9 +108,9 @@ def prepare_eqt(input_dir, ai):
     elif ai in ('eqcc', 'eqcctps', 'eqcct'):
         # exctracting from the file_name column the network, location and channel
         # the file_name column has the following format: station/network.station.location.channel__starttime__endtime.mseed
-        df['network'] = df['file_name'].str.split('/').str[1].str.split('.').str[0]
-        df['location'] = df['file_name'].str.split('/').str[1].str.split('.').str[2]
-        df['channel'] = df['file_name'].str.split('/').str[1].str.split('.').str[3].str.split('__').str[0].str[:-1]
+        df['network'] = df['file_name'].str.split('.').str[0]
+        df['location'] = df['file_name'].str.split('.').str[2]
+        df['channel'] = df['file_name'].str.split('.').str[3].str[:-1]
 
 
         # Create a list of picks
@@ -122,11 +119,12 @@ def prepare_eqt(input_dir, ai):
                                 df['p_arrival_time'].tolist(),
                                 df['p_probability'].tolist(),
                                 df['s_arrival_time'].tolist(),
-                                df['s_probability'].tolist())
+                                df['s_probability'].tolist(),
+                                thr_dict)
 
     return p_list
 
-def read_eqcc_picks(nets, stations, chs, locs, p_times, p_probs, s_times, s_probs):
+def read_eqcc_picks(nets, stations, chs, locs, p_times, p_probs, s_times, s_probs,thr_dict):
     """Iterate over picks to generate list of Picks objects
 
     Parameters
@@ -148,12 +146,6 @@ def read_eqcc_picks(nets, stations, chs, locs, p_times, p_probs, s_times, s_prob
     """
     picks_list = []
 
-    key = 'eqt_station_thr_dict'
-    if key in read_params():
-        thr_dict = eval(read_params()[key])
-    else:
-        thr_dict = None
-
     for i in range(len(s_times)):
         net, station, ch, loc = nets[i], stations[i], chs[i], locs[i]
         s_pick = None
@@ -162,18 +154,10 @@ def read_eqcc_picks(nets, stations, chs, locs, p_times, p_probs, s_times, s_prob
 
         p_t, p_prob = p_times[i], p_probs[i]
         
-        if thr_dict is not None:
-            if station in thr_dict:
-                try:
-                    thr = float(thr_dict[station])
-                except ValueError:
-                    thr = 0.001
-                    # print in red and bold that the threshold is not a float
-                    print(f'\033[1;31m{station} threshold is not a float, using {thr}\033[0m')
-                if p_prob < thr:
-                    # print in red and bold that the pick will be discarded because of the threshold
-                    print(f'\033[1;33m{station} {p_t} picks discarded, p_prob:{p_prob} < {thr}\033[0m')
-                    continue
+        if p_prob < thr_dict:
+            # print in red and bold that the pick will be discarded because of the threshold
+            print(f'\033[1;33m{station} {p_t} picks discarded, p_prob:{p_prob} < {thr}\033[0m')
+            continue
                     
         p_pick = eqt_pick_constructor(p_t, p_prob, net,
                                         station, loc, ch, 'P', 'EQCCT')

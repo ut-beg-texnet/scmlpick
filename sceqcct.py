@@ -37,18 +37,20 @@ class fetchWf(StreamApplication):
         self.remTr = 600 # Duration in seconds to remove traces from the processing stream
         self.bulkSts = 2 # Number of stations to send each time to the picker
         self.staSend = []
-        # self.stas = ['TX.PB35','TX.PB57']
-        # self.stas = ['TX.PB01','TX.PB03','TX.PB04','TX.PB05']
-        # self.stas = ['TX.PB18','TX.PB51']
-        self.stas = ['TX.PB01','TX.PB03','TX.PB04','TX.PB05','TX.PB06','TX.PB07',
-                     'TX.PB08','TX.PB09','TX.PB10','TX.PB11','TX.PB12','TX.PB13',
-                     'TX.PB14','TX.PB16','TX.PB17','TX.PB17','TX.PB18','TX.PB19',
-                     'TX.PB20','TX.PB21','TX.PB22','TX.PB23','TX.PB24','TX.PB25',
-                     'TX.PB26','TX.PB28','TX.PB29','TX.PB30','TX.PB31','TX.PB32',
-                     'TX.PB33','TX.PB34','TX.PB35','TX.PB36','TX.PB37','TX.PB38',
-                     'TX.PB39','TX.PB40','TX.PB42','TX.PB43','TX.PB44','TX.PB46',
-                     'TX.PB47','TX.PB51','TX.PB52','TX.PB53','TX.PB54','TX.PB55',
-                     'TX.PB56','TX.PB57','TX.PB58','TX.PB59']
+        self.eqcctTHR = 0.001
+        # self.stas = ['TX.PB01','TX.PB03','TX.PB04','TX.PB05','TX.PB06','TX.PB07',
+        #              'TX.PB08','TX.PB09','TX.PB10','TX.PB11','TX.PB12','TX.PB13',
+        #              'TX.PB14','TX.PB16','TX.PB17','TX.PB17','TX.PB18','TX.PB19',
+        #              'TX.PB20','TX.PB21','TX.PB22','TX.PB23','TX.PB24','TX.PB25',
+        #              'TX.PB26','TX.PB28','TX.PB29','TX.PB30','TX.PB31','TX.PB32',
+        #              'TX.PB33','TX.PB34','TX.PB35','TX.PB36','TX.PB37','TX.PB38',
+        #              'TX.PB39','TX.PB40','TX.PB42','TX.PB43','TX.PB44','TX.PB46',
+        #              'TX.PB47','TX.PB51','TX.PB52','TX.PB53','TX.PB54','TX.PB55',
+        #              'TX.PB56','TX.PB57','TX.PB58','TX.PB59']
+        self.stas = ['TX.DG01','TX.DG04','TX.DG05','TX.DG09','TX.PB03','TX.PB04',
+                     'TX.PB05','TX.PB14','TX.PB15','TX.PB16','TX.PB17','TX.PB18',
+                     'TX.PB19','TX.PB21','TX.PB22','TX.PB30','TX.PB32']
+        # self.stas = ['TX.DG01','TX.DG04','TX.DG05','TX.DG09']
         self.instTypes = ['HH','CH']
 
     def init(self):
@@ -270,10 +272,20 @@ class fetchWf(StreamApplication):
             for i,trace in enumerate(self.stream):
                 for tr in self.oneMinuteStream:
                     if trace.stats.network == tr.stats.network and trace.stats.station == tr.stats.station and trace.stats.channel == tr.stats.channel:
-                        self.stream[i] = trace.slice(
-                            starttime=self.stream[i].stats.starttime + self.eqcctWindow - self.time_shift,
-                            endtime=self.stream[i].stats.endtime
-                            )
+                        # print(self.stream[i])
+                        # print(self.stream[i].stats.starttime)
+                        # print(self.stream[i].stats.endtime)
+                        try:
+                            self.stream[i] = trace.slice(
+                                starttime=self.stream[i].stats.starttime + self.eqcctWindow - self.time_shift,
+                                endtime=self.stream[i].stats.endtime
+                                )
+                        except:
+                            print(self.stream[i])
+                            print(self.stream[i].stats.starttime)
+                            print(self.stream[i].stats.endtime)
+                            print('Error when slice the trace')
+                        # print(self.stream[i])
             
             # print("stream after slice")
             # print(self.stream)
@@ -303,7 +315,8 @@ class fetchWf(StreamApplication):
         # Prepare tasks for EQCCT picking
         stations = []
         for trace in stream:
-            station = f'{trace.stats.network}.{trace.stats.station}'
+            station = f'{trace.stats.network}.{trace.stats.station}.{trace.stats.location}.{trace.stats.channel}'
+            # station = f'{trace.stats.network}.{trace.stats.station}'
             if station not in stations:
                 stations.append(station)
 
@@ -343,7 +356,7 @@ class fetchWf(StreamApplication):
                         model         = model,
                         gpu_id        = eqcct_gpu_id,
                         gpu_limit     = eqcct_gpu_limit)
-        picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc')
+        picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.eqcctTHR)
 
     def run(self):
         return StreamApplication.run(self)
