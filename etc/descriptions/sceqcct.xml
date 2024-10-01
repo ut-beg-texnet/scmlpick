@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+        <module name="sceqcct" category="texnet" author="Texas Seismological Network (TexNet)">
+                <description>
+                        EQCCT module
+                </description>
+                <configuration>
+                        <parameter name="stations" type="list:string">
+                                <description>
+                                    Define the list of stations that are allowed to process. Fotmat: NET.STA
+                                </description>
+                        </parameter>
+                        <parameter name="whiteChanns" type="list:string">
+                                <description>
+                                    Define the list of channles types that are allowed to process. Example: HH, CH
+                                </description>
+                        </parameter>
+                        <group name="eqcct">
+                                <parameter name="Pmodel" type="string">
+                                        <description>
+                                            EQCCT model to detect P phases.
+                                        </description>
+                                </parameter>
+                                <parameter name="Smodel" type="string">
+                                        <description>
+                                            EQCCT model to detect S phases.
+                                        </description>
+                                </parameter>
+                                <parameter name="windowLength" type="int" default="60">
+                                        <description>
+                                            Define the data window length in seconds to send to eqcct.
+                                        </description>
+                                </parameter>
+                                <parameter name="probThreshold" type="double" default="0.001">
+                                        <description>
+                                            Minimum probability to reach to send a new pick.
+                                        </description>
+                                </parameter>              
+                                <parameter name="timeShift" type="int" default="30">
+                                        <description>
+                                            Define the time in seconds to overlap with the previous window.
+                                        </description>
+                                </parameter>
+                                <parameter name="stasBulk" type="int" default="5">
+                                        <description>
+                                            Number of stations to send at a time to eqcct.
+                                        </description>
+                                </parameter>
+                                <parameter name="startLatency" type="int" default="60">
+                                        <description>
+                                            Define time in seconds to wait before sending the first data packet to eqcct.
+                                        </description>
+                                </parameter>              
+                                <parameter name="timeRemoveTrace" type="int" default="600">
+                                        <description>
+                                            Maximum time in seconds to wait before remove traces from the processing stream.
+                                        </description>
+                                </parameter>
+                                <parameter name="eqcctPthr" type="double" default="0.001">
+                                        <description>
+                                            Minimum probability to reach to send a new P pick.
+                                        </description>
+                                </parameter>
+                                <parameter name="eqcctSthr" type="double" default="0.002">
+                                        <description>
+                                            Minimum probability to reach to send a new S pick.
+                                        </description>
+                                </parameter>
+                                <parameter name="eqcctOverlap" type="int" default="0">
+                                        <description>
+                                            If set the detection and picking are performed in overlapping windows.
+                                        </description>
+                                </parameter>
+                                <parameter name="eqcctBatchSize" type="int" default="1">
+                                        <description>
+                                            Batch size. This wont affect the speed much but can affect the performance. A value beteen 200 to 1000 is recommended.
+                                        </description>
+                                </parameter>
+                                <parameter name="gpuID" type="int" default="0">
+                                        <description>
+                                            Id of GPU used for the prediction. If using CPU set to None.
+                                        </description>
+                                </parameter>
+                                <parameter name="gpuLimit" type="int" default="1">
+                                        <description>
+                                            Set the maximum percentage of memory usage for the GPU.
+                                        </description>
+                                </parameter>
+                        </group>
+                </configuration>
+        </module>
+</seiscomp>

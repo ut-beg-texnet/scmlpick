@@ -1,0 +1,542 @@
+#!/usr/bin/env python3
+
+"""
+Copyright (C) by TexNet/CISR
+Created on Jul 31 2024
+Author of the Software: Camilo Munoz
+"""
+
+import sys, os
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from seiscomp.client import StreamApplication, Inventory, Protocol
+from seiscomp.datamodel import Pick, TimeQuantity, WaveformStreamID, Phase, NotifierMessage, Notifier, OP_ADD, PickReference, Comment, CreationInfo
+from seiscomp.core import Time, FloatArray
+from seiscomp import logging
+from obspy import Stream, Trace, UTCDateTime
+from pathlib import Path
+from seiscomp.system import Environment
+# import main_picks as picks2xml
+
+class sceqcct(StreamApplication):
+    def __init__(self):
+        StreamApplication.__init__(self, len(sys.argv), sys.argv)
+        self.setDatabaseEnabled(True, True)
+        self.setPrimaryMessagingGroup(Protocol.LISTENER_GROUP)
+        self.setMessagingEnabled(True)
+        # self.setPrimaryMessagingGroup("PICKEQCCT")
+        # self.addMessagingSubscription("PICK")
+        self.setLoadInventoryEnabled(True)
+
+        self.ei = Environment.Instance()
+        share_path = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # share_path = os.path.abspath("../share/sceqcct/tools")
+        sys.path.append(share_path)
+        self.predictor = __import__('predictor')
+        self.initStreams = []
+        self.streams = []
+        self.stream = Stream()
+        self.streamPick = Stream()
+        self.oneMinuteStream = Stream()
+        self.stasDict = {}
+        self.stasPick = set()
+        self.staSend = []
+
+    def initConfiguration(self):
+        """
+        Read configuration file.
+        """
+        if not StreamApplication.initConfiguration(self):
+            return False
+        try:
+            self.stations = self.configGetStrings("stations")
+        except Exception as e:
+            logging.info('List of stations could not be read: %s' % e)
+        try:
+            self.whiteChanns = self.configGetStrings("whiteChanns")
+        except Exception as e:
+            logging.info('whiteChanns could not be read: %s' % e)
+        try:
+            self.eqcct_Pmodel = self.configGetString('eqcct.Pmodel')
+        except Exception as e:
+            logging.info('P model could not be read : %s' % e)
+        try:
+            self.eqcct_Smodel = self.configGetString('eqcct.Smodel')
+        except Exception as e:
+            logging.info('S model could not be read : %s' % e)   
+        try:
+            self.windowLength = self.configGetInt('eqcct.windowLength')
+        except Exception as e:
+            logging.info('windowLength could not be read : %s' % e)
+        try:
+            self.probThreshold = self.configGetDouble('eqcct.probThreshold')
+        except Exception as e:
+            logging.info('probThreshold could not be read : %s' % e)
+        try:
+            self.timeShift = self.configGetInt('eqcct.timeShift')
+        except Exception as e:
+            logging.info('timeShift could not be read : %s' % e)
+        try:
+            self.stasBulk = self.configGetInt('eqcct.stasBulk')
+        except Exception as e:
+            logging.info('stasBulk could not be read : %s' % e)
+        try:
+            self.startLatency = self.configGetInt('eqcct.startLatency')
+        except Exception as e:
+            logging.info('startLatency could not be read : %s' % e)
+        try:
+            self.timeRemoveTrace = self.configGetInt('eqcct.timeRemoveTrace')
+        except Exception as e:
+            logging.info('timeRemoveTrace could not be read : %s' % e)
+
+        #EQCCT
+        try:
+            self.eqcctPthr = self.configGetDouble('eqcct.eqcctPthr')
+        except Exception as e:
+            logging.info('eqcctPthr could not be read : %s' % e)
+        try:
+            self.eqcctSthr = self.configGetDouble('eqcct.eqcctSthr')
+        except Exception as e:
+            logging.info('eqcctSthr could not be read : %s' % e)
+        try:
+            self.eqcctOverlap = self.configGetInt('eqcct.eqcctOverlap')
+        except Exception as e:
+            logging.info('eqcctOverlap could not be read : %s' % e)
+        try:
+            self.eqcctBatchSize = self.configGetInt('eqcct.eqcctBatchSize')
+        except Exception as e:
+            logging.info('eqcctBatchSize could not be read : %s' % e)
+        try:
+            self.gpuID = self.configGetInt('eqcct.gpuID')
+        except Exception as e:
+            logging.info('gpuID could not be read : %s' % e)
+        try:
+            self.gpuLimit = self.configGetInt('eqcct.gpuLimit')
+        except Exception as e:
+            logging.info('gpuLimit could not be read : %s' % e)
+
+        return True
+
+
+    def init(self):
+        if not StreamApplication.init(self): return False
+        # self.enableTimer(self.latencyPeriod)
+        self.updateStreams()
+        self.now = UTCDateTime(Time.GMT())
+        self.startTime = UTCDateTime(pd.to_datetime(str(self.now)) + timedelta(seconds=self.startLatency))
+        logging.info("Starting time %s " % self.now)
+        logging.info("Starting time plus start latency %s " % self.startTime)
+        return True
+
+    def updateStreams(self):
+        # streamIDs = self.configStreams()
+        streamIDs = self.currentStreams()
+        for streamID in streamIDs:
+            for sta in self.stations:
+                if (streamID[0] == sta.split('.')[0] and streamID[1] == sta.split('.')[1]):
+                    if streamID[1] in self.stasDict:
+                        self.stasDict[streamID[1]].append(streamID[3])
+                    else:
+                        self.stasDict[streamID[1]] = [streamID[3]]
+                    self.initStreams.append(streamID)
+                    self.recordStream().addStream(*streamID)
+        return
+
+    def configStreams(self):
+        streamIDs=[]
+        cfg = self.configModule()
+        inv = Inventory.Instance().inventory()
+        for i in range(cfg.configStationCount()):
+            cfg_sta = cfg.configStation(i)
+            net = cfg_sta.networkCode()
+            sta = cfg_sta.stationCode()
+            nets = inv.networkCount()
+            for n in range(nets):
+                network = inv.network(n)
+                if network.code() == net:
+                    stas = network.stationCount()
+                    for s in range(stas):
+                        station = network.station(s)
+                        if station.code() == sta:
+                            locs = station.sensorLocationCount()
+                            for l in range(locs):
+                                location = station.sensorLocation(l)
+                                loc = location.code()
+                                chans = location.streamCount()
+                                for c in range(chans):
+                                    channel = location.stream(c)
+                                    chan = channel.code()
+                                    if chan[0:2] in self.whiteChanns:
+                                        streamIDs.append([net, sta, loc, chan])
+        return streamIDs
+
+    def currentStreams(self):
+        now = Time.GMT()
+        streamIDs=[]
+        inv = Inventory.Instance()
+        nets = inv.inventory().networkCount()
+        for n in range(nets):
+            network = inv.inventory().network(n)
+            net = network.code()
+            stas = network.stationCount()
+            for s in range(stas):
+                station = network.station(s)
+                sta = station.code()
+                station_now = False
+                station_now = inv.getStation(network.code(),sta,now)
+                if station_now:
+                    staCode = station_now.code()
+                    locs = station_now.sensorLocationCount()
+                    for l in range(locs):
+                        location = station_now.sensorLocation(l)
+                        loc = location.code()
+                        loc_now = False
+                        loc_now = inv.getSensorLocation(network.code(),staCode,loc,now)
+                        if loc_now:
+                            locCode = loc_now.code()
+                            chans = location.streamCount()
+                            for c in range(chans):
+                                channel = location.stream(c)
+                                chan = channel.code()
+                                if chan[0:2] in self.whiteChanns:
+                                    chan_now = False
+                                    chan_now = inv.getStream(network.code(),staCode,locCode,chan,now)
+                                    if chan_now:
+                                        chanCode = chan_now.code()
+                                        sid = [net, staCode, locCode, chanCode]
+                                        if sid not in streamIDs:
+                                            streamIDs.append([net, staCode, locCode, chanCode])
+        return streamIDs
+                
+    def handleRecord(self, rec):
+        # diftime = diftime.seconds()
+        # streamid = "%s.%s.%s.%s"%tuple(rec.streamID().split('.'))
+
+        now = UTCDateTime(Time.GMT())
+        if now < self.startTime:
+            logging.debug('Waiting for the processing start time %s' % self.startTime)
+
+        startTime = rec.startTime()
+        endTime =  rec.endTime()
+        sampFreq = rec.samplingFrequency()
+        # freq = str(1000/sampFreq)+'ms'
+        net = rec.networkCode()
+        sta = rec.stationCode()
+        net_sta = f"{net}.{sta}"
+        loc = rec.locationCode()
+        chan = rec.channelCode()
+        start_time = pd.to_datetime(str(startTime))
+        end_time = pd.to_datetime(str(endTime))
+        # time_range = pd.date_range(start=start_time, end=end_time, freq=freq, inclusive='left')
+        # time_array = np.array(time_range)
+        # time_array_utc = [UTCDateTime(t) for t in time_array]
+        if rec.data():
+            # print(rec.data().size())
+            # print(len(time_array))
+            dataObj = FloatArray.Cast(rec.data())
+            if dataObj:
+                data = [dataObj.get(i) for i in range(dataObj.size())]
+            else:
+                logging.debug('No data')
+        data = np.array(data)
+        header = {
+            'network': net, 
+            'station': sta, 
+            'location': loc, 
+            'channel': chan, 
+            'npts': len(data), 
+            'sampling_rate': sampFreq,
+            'starttime': UTCDateTime(start_time)
+        }
+        tr = Trace(data=data, header=header)
+        # print(tr)
+        if len(self.stream) == 0:
+            self.stream.append(tr)
+        else:
+            inSt = False
+            for i,trace in enumerate(self.stream):
+                if trace.stats.network == net and trace.stats.station == sta and trace.stats.channel == chan:
+                    inSt = True
+                    tempSt = Stream()
+                    tempSt.append(trace)
+                    tempSt.append(tr)
+                    tempSt.merge(method=1, fill_value=0)
+                    self.stream[i] = tempSt[0]
+                    # trace.data = np.concatenate((trace.data, tr.data))
+                    # trace.stats.endtime = tr.stats.endtime
+                    if self.stream[i].stats.endtime < self.startTime +  timedelta(seconds=self.windowLength):
+                        if self.stream[i].stats.endtime > self.startTime:
+                            # print(self.startTime)
+                            # print(UTCDateTime(end_time))
+                            self.stream[i].trim(self.startTime, UTCDateTime(end_time), pad=True, fill_value=0)
+                        else:
+                            # print(self.stream[i].stats.endtime)
+                            return
+                    # print(self.stream[i].stats.endtime - self.stream[i].stats.starttime)
+                    if self.stream[i].stats.endtime - self.stream[i].stats.starttime >= self.windowLength:
+                        traceID = f'{net}.{sta}.{loc}.{chan}'
+                        trace_found = any(tr.id == traceID for tr in self.streamPick)
+                        # print(traceID)
+                        # print(any(tr.id == traceID for tr in self.streamPick))
+                        # print(tr.id for tr in self.streamPick)
+                        if not trace_found:
+                            self.streamPick.append(self.stream[i])
+                            self.stasPick.add(self.stream[i].stats.station)
+                        # else:
+                            # return
+                    # else:
+                        # return
+            if not inSt:
+                    self.stream.append(tr)
+                    # return
+        
+        for trace in reversed(self.stream):
+            lenght = trace.stats.endtime - trace.stats.starttime
+            if lenght > self.timeRemoveTrace:
+                self.stream.remove(trace)
+
+        # print("stream")
+        # print(self.stream)
+        # print("streamPick")
+        # print(self.streamPick)
+
+        # print('staSend')
+        # print(self.staSend)
+        # print('stasPick')
+        # print(self.stasPick)
+
+        for sta in self.stasPick:
+            checkSta = True
+            # print('stasPick')
+            # print(sta)
+            for recChann in self.stasDict[sta]:
+                # print('recChann')
+                # print(recChann)
+                checkChann = False
+                for i,trace in enumerate(self.streamPick):
+                    if trace.stats.station == sta:
+                        if recChann == trace.stats.channel:
+                            # print('streamPick')
+                            # print(trace.stats.channel)
+                            checkChann = True
+                if not checkChann:
+                    checkSta = False
+            if checkSta and sta not in self.staSend:
+                # print('checkSta')
+                # print(sta)
+                self.staSend.append(sta)
+
+        [self.stasPick.remove(sta) for sta in self.staSend if sta in self.stasPick]
+
+        # print('staSend')
+        # print(self.staSend)
+        # print('stasPick')
+        # print(self.stasPick)
+
+        toRemove = []
+        if len(self.staSend) >= self.stasBulk:
+            # Process the one-minute stream
+            for i,trace in enumerate(self.streamPick):
+                if self.streamPick[i].stats.station in self.staSend:
+                    startMinute = self.streamPick[i].stats.starttime
+                    endMinute = self.streamPick[i].stats.starttime + self.windowLength
+                    traceMin = trace.slice(
+                                        starttime=startMinute,
+                                        endtime=endMinute
+                                        )
+                    self.oneMinuteStream.append(traceMin)
+                    toRemove.append(i)
+            
+            for i in sorted(toRemove, reverse=True): del self.streamPick[i]
+
+            # print("one_minute_stream")
+            # print(self.oneMinuteStream)
+
+            for i,trace in enumerate(self.stream):
+                for tr in self.oneMinuteStream:
+                    if trace.stats.network == tr.stats.network and trace.stats.station == tr.stats.station and trace.stats.channel == tr.stats.channel:
+                        # print(self.stream[i])
+                        # print(self.stream[i].stats.starttime)
+                        # print(self.stream[i].stats.endtime)
+                        try:
+                            self.stream[i] = trace.slice(
+                                # starttime=self.stream[i].stats.starttime + self.windowLength,
+                                starttime=self.stream[i].stats.starttime + self.windowLength - self.timeShift,
+                                endtime=self.stream[i].stats.endtime,
+                                )
+                        except:
+                            logging.error(f"Error when slice the trace %s" % self.stream[i])
+                        # print(self.stream[i])
+            
+            # print("stream after slice")
+            # print(self.stream)
+            
+            # Run EQCCT picker
+            self.run_picker(startMinute,endMinute,self.oneMinuteStream)
+            self.oneMinuteStream = Stream()
+            self.staSend = []
+
+    def run_picker(self,start_time,end_time,stream):
+        # Create working dirs       
+        Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
+        Path(os.path.join(self.ei.shareDir(), "sceqcct/results/logs/picker")).mkdir(exist_ok=True, parents=True)
+        pathResutls = os.path.join(self.ei.shareDir(), "sceqcct/results")
+                                                    
+        model = self.predictor.load_model(self.eqcct_Pmodel, self.eqcct_Smodel, f"{pathResutls}/model.log")
+
+        # Get picker tasks
+        start_time = UTCDateTime(start_time)
+        end_time = UTCDateTime(end_time)
+        chunk_time = [[start_time, end_time]]
+
+        # Prepare tasks for EQCCT picking
+        stations = []
+        for trace in stream:
+            # station = f'{trace.stats.network}.{trace.stats.station}.{trace.stats.location}.{trace.stats.channel}'
+            station = f'{trace.stats.network}.{trace.stats.station}'
+            if station not in stations:
+                stations.append(station)
+
+        logging.debug('Sending stations to EQCCT %s'% stations)
+        tasks = [[f"({i+1}/{len(chunk_time)})", chunk_time[i][0], chunk_time[i][1], stations, [], model] for i in range(len(chunk_time))]
+
+        # Run picker
+        for task in tasks:
+            self.picker(task,stream)
+
+    def picker(self,task,stream):
+
+        pos, starttime, endtime, stations, params, model = task
+        begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
+        end = endtime.strftime(format="%Y%m%dT%H%M%SZ")
+
+        log_file = os.path.join(self.ei.shareDir(), f"sceqcct/results/logs/picker/{begin}_{end}.log")
+        logging.info(f"[{datetime.now()}] Running EQCCT picker {pos}. Log file: {log_file}")
+
+        output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
+        
+        picks = self.predictor.mseed_predictor(stream            = stream,
+                        output_dir    = output_eqcct,
+                        stations2use  = stations,
+                        P_threshold   = self.eqcctPthr,
+                        S_threshold   = self.eqcctSthr,
+                        normalization_mode = 'std',
+                        overlap       = self.eqcctOverlap,
+                        batch_size    = self.eqcctBatchSize,
+                        overwrite     = True,
+                        log_file      = log_file,
+                        model         = model,
+                        gpu_id        = self.gpuID,
+                        gpu_limit     = self.gpuLimit)
+        
+        self.scPhase(picks)
+
+        # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
+
+
+    def scPhase(self,picks):
+        for pickData in picks:
+            logging.info(str(pickData))
+            if pickData['PdateTime']:
+                PpickID = self.scPick(pickData, 'P', 'PdateTime', 'p_prob')
+                if pickData['SdateTime']:
+                    pickData['PpickID'] = PpickID
+                    self.scPick(pickData, 'S', 'SdateTime', 's_prob')
+
+    def scPick(self,pickData,phaseHint,strDate,strProp):
+        pick = Pick.Create()
+        Ptime = pickData[strDate]
+        scPtime = Ptime.strftime('%Y-%m-%d %H:%M:%S.%f')
+        scPtime = Time()
+        scPtime.set(Ptime.year,Ptime.month,Ptime.day,Ptime.hour,Ptime.minute,Ptime.second,Ptime.microsecond)
+        timeQ = TimeQuantity()
+        timeQ.setValue(scPtime)
+        timeQ.setUncertainty(float(pickData[strProp]))
+        pick.setTime(timeQ)
+        # print(pick.time().value())
+        # print(pick.time().uncertainty())
+        wfID = WaveformStreamID()
+        wfID.setNetworkCode(pickData['trace_name'].split('.')[0])
+        wfID.setStationCode(pickData['trace_name'].split('.')[1])
+        wfID.setLocationCode(pickData['trace_name'].split('.')[2])
+        wfID.setChannelCode(pickData['trace_name'].split('.')[3])
+        pick.setWaveformID(wfID)
+        phase = Phase()
+        phase.setCode(phaseHint)
+        pick.setPhaseHint(phase)
+        pick.setMethodID('EQCCT')
+        pick.setEvaluationMode(1)
+
+        ci = CreationInfo()
+        ci.setCreationTime(Time().GMT())
+        pick.setCreationInfo(ci)
+
+        logging.debug("Pick produced by EQCCT %s.%s" % (pick.waveformID().networkCode(), pick.waveformID().stationCode()))
+        logging.debug('%s' % pick)
+            
+        self.sendPick(pick)
+
+        # pickRef = PickReference()
+        if phaseHint == 'S':
+            # pickRef.setPickID(pickData['PpickID'])
+            comt = Comment()
+            comt.setId('RefPickID')
+            comt.setText(str(pickData['PpickID']))
+            ci = CreationInfo()
+            ci.setCreationTime(Time().GMT())
+            comt.setCreationInfo(ci)
+            # print(pick.comment(0).id())
+            # print(pick.comment(0).text())    
+            pick.add(comt)
+            self.sendComt(comt, pick)
+        else:
+            # pickRef.setPickID(pick.publicID())
+            pass
+
+        return pick.publicID()
+
+    def sendComt(self, comt, pick):
+        op = OP_ADD
+        if comt:
+            n = Notifier(pick.publicID(), op, comt)
+            msg = NotifierMessage()
+            msg.attach(n)
+            out = self.connection().send(msg)
+            logging.debug("Comment sent? %s" % "Yes" if out else "No, failed" )
+            # comtObj = Comment.Cast(comt)
+            # Notifier.Enable()
+            # n = Notifier("EventParameters", op, comtObj)
+            # msg = NotifierMessage()
+            # msg.attach(n)
+            # out = self.connection().send(msg)
+            # logging.debug("Comment sent? %s" % "Yes" if out else "No, failed" )
+
+    def sendPick(self, pick):
+        op = OP_ADD
+        if pick:
+            pickObj = Pick.Cast(pick)
+            Notifier.Enable()
+            # ep = EventParameters()
+            # ep.add(pickObj)
+            n = Notifier("EventParameters", op, pickObj)
+            msg = NotifierMessage()
+            msg.attach(n)
+            out = self.connection().send(msg)
+            logging.debug("Pick sent? %s" % "Yes" if out else "No, failed" )
+        # if pickRef:
+        #     pickRefObj = PickReference.Cast(pickRef)
+        #     Notifier.Enable()
+        #     n2 = Notifier("EventParameters", op, pickRefObj)
+        #     msg2 = NotifierMessage()
+        #     msg2.attach(n2)
+        #     out2 = self.connection().send(msg2)
+        #     logging.debug("PickReference sent? %s" % "Yes" if out2 else "No, failed" )
+        return out
+    def run(self):
+        return StreamApplication.run(self)
+
+if __name__ == '__main__':
+    import sys
+    app = sceqcct()
+    sys.exit(app())
