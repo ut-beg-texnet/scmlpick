@@ -11,9 +11,9 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from seiscomp.client import StreamApplication, Inventory, Protocol
-from seiscomp.datamodel import Pick, TimeQuantity, WaveformStreamID, Phase, NotifierMessage, Notifier, OP_ADD, PickReference, Comment, CreationInfo
+from seiscomp.datamodel import Pick, TimeQuantity, WaveformStreamID, Phase, NotifierMessage, Notifier, OP_ADD, OP_UPDATE, PickReference, Comment, CreationInfo, Origin
 from seiscomp.core import Time, FloatArray
-from seiscomp import logging
+from seiscomp import logging, geo
 from obspy import Stream, Trace, UTCDateTime
 from pathlib import Path
 from seiscomp.system import Environment
@@ -116,8 +116,48 @@ class sceqcct(StreamApplication):
         except Exception as e:
             logging.info('gpuLimit could not be read : %s' % e)
 
-        return True
+        #qcheck
+        try:
+            self.latUncTHR = self.configGetInt('qcheck.latUncTHR')
+        except Exception as e:
+            logging.info('latUncTHR could not be read : %s' % e)
 
+        try:
+            self.lonUncTHR = self.configGetInt('qcheck.lonUncTHR')
+        except Exception as e:
+            logging.info('lonUncTHR could not be read : %s' % e)
+
+        try:
+            self.depthUncTHR = self.configGetInt('qcheck.depthUncTHR')
+        except Exception as e:
+            logging.info('depthUncTHR could not be read : %s' % e)
+
+        try:
+            self.depthTHR = self.configGetInt('qcheck.depthTHR')
+        except Exception as e:
+            logging.info('depthTHR could not be read : %s' % e)
+
+        try:
+            self.azGapTHR = self.configGetInt('qcheck.azGapTHR')
+        except Exception as e:
+            logging.info('azGapTHR could not be read : %s' % e)
+
+        try:
+            self.region = self.configGetString('qcheck.region')
+        except Exception as e:
+            logging.info('region could not be read : %s' % e)
+
+        try:
+            self.TrueOrgEvalStat = self.configGetInt('qcheck.TrueOrgEvalStat')
+        except Exception as e:
+            logging.info('TrueOrgEvalStat could not be read : %s' % e)
+
+        try:
+            self.FalseOrgEvalStat = self.configGetInt('qcheck.FalseOrgEvalStat')
+        except Exception as e:
+            logging.info('FalseOrgEvalStat could not be read : %s' % e)
+
+        return True
 
     def init(self):
         if not StreamApplication.init(self): return False
@@ -434,7 +474,6 @@ class sceqcct(StreamApplication):
 
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
 
-
     def scPhase(self,picks):
         for pickData in picks:
             logging.info(str(pickData))
@@ -533,6 +572,142 @@ class sceqcct(StreamApplication):
         #     out2 = self.connection().send(msg2)
         #     logging.debug("PickReference sent? %s" % "Yes" if out2 else "No, failed" )
         return out
+
+    def changeOrigStatus(self, origin, EvalStat):
+        try:
+            origin.setEvaluationStatus(EvalStat)
+            logging.debug("Changing origin %s evaluation status %s" % (origin.publicID(),origin.setEvaluationStatus()))
+        except:
+            logging.error("Error changing origin evaluation status %s" % origin.publicID())
+        return origin
+
+
+    def qualityCheckOrigin(self, origin):
+
+        latUnc = origin.latitude().uncertainty()
+        lonUnc = origin.longitude().uncertainty()
+        try:
+            depthUnc = origin.depth().uncertainty()
+        except ValueError:
+            depthUnc = 0
+        depth = origin.depth().value()
+        azGap = origin.quality().azimuthalGap()
+
+        thresholds = {'latUnc': self.latUncTHR, 'lonUnc': self.lonUncTHR, 'depthUnc': self.depthUncTHR, 'depth': self.depthTHR, 'azGap': self.azGapTHR}
+        values = {'latUnc': latUnc, 'lonUnc': lonUnc, 'depthUnc': depthUnc, 'depth': depth, 'azGap': azGap}
+
+        exceeding = {key: value for key, value in values.items() if value > thresholds[key]}
+        
+        if exceeding:
+            logging.debug(f"Values exceeding thresholds: {exceeding}")
+            return False
+        else:
+            logging.debug(f"Origin fulfills thresholds: {exceeding}")
+            return True
+
+    def geographicCheckOrigin(self, region, origin):
+        if isinstance(region, str):
+            if region.split('.')[-1] == 'bna':
+                try:
+                    within = self.inPolygon(region, origin.latitude().value(), origin.longitude().value())
+                    return within
+                except FileNotFoundError:
+                    logging.error(f'\n\n\t {region} file not found\n\n')
+                    return False
+            elif len(region.split(',')) == 4:
+                quadrant = region.split(',')
+                quadrant = tuple(map(float, quadrant))
+                return self.inQuadrant(quadrant, origin)
+            else:
+                logging.error(f'Provide a quadrant or bna file')
+                return False
+        elif isinstance(region, tuple):
+            return self.inQuadrant(quadrant, origin)
+        else:
+            logging.error(f'Provide a quadrant or bna file')
+            return False
+
+    def inPolygon(self, fileName, lat, lon) -> bool:
+        self.fs = geo.GeoFeatureSet()
+        if not self.fs.readBNAFile(fileName, None):
+            logging.error('Impossible to open the bna file %s'%fileName)
+            return False
+        
+        feature = self.fs.features()[0]
+        closed = feature.closedPolygon()
+        if not closed:
+            logging.error('Please fix this: Polygon %s does not not exist or is not closed'%fileName)
+        
+        coordinates = geo.GeoCoordinate(lat,lon)
+        within = feature.contains(coordinates)
+        if not within:
+            logging.debug('Origin (lat: %s and lon: %s) is not within polygon %s.' % (lat,lon,fileName))
+
+        return(within)
+
+    def inQuadrant(self, quadrant: tuple, origin) -> bool:
+        """Check if event location is in a quadrant
+
+        Parameters
+        ----------
+        quadrant : Tuple
+            Quadrant to check in format (lat_min, lat_max, lon_min,  lon_max)
+
+        Returns
+        -------
+        bool
+            True if event is in quadrant, False if not
+        """
+        assert len(quadrant) == 4, 'Quadrant must be a tuple with 4 elements'
+        assert quadrant[0] < quadrant[1], 'The minimum latitude must be less than the maximum latitude'
+        assert quadrant[2] < quadrant[3], 'The minimum longitude must be less than the maximum longitude'
+        return (quadrant[0] <= origin.latitude().value() <= quadrant[1]
+                and quadrant[2] <= origin.longitude().value() <= quadrant[3])
+
+    def handleOrigin(self, org, op=OP_UPDATE):
+        """
+        Test origins
+        """
+        try:
+            logging.debug("Received origin %s" % org.publicID())
+            checkQc = self.qualityCheckOrigin(org)
+            if self.region != 'none':
+                checkReg = self.geographicCheckOrigin(self.region, org)
+            else:
+                checkReg = True
+        except:
+            logging.error("Error when performing quality checks for the origin %s" % org.publicID())
+            return
+
+        if checkQc and checkReg:
+            org = self.changeOrigStatus(org,self.TrueOrgEvalStat)
+        else:
+            org = self.changeOrigStatus(org,self.FalseOrgEvalStat)
+
+        if org:
+            msg = NotifierMessage()
+            n = Notifier("EventParameters", op, org)
+            msg.attach(n)
+            out = self.connection().send(msg)
+            logging.debug("Evaluation status updated? %s" % "Yes" if out else "No, failed" )
+
+
+    def addObject(self, parentID, object):
+        """
+        Call-back function if a new object is received.
+        """
+        origin = Origin.Cast(object)
+        if origin:
+            self.handleOrigin(origin, op=OP_UPDATE)
+
+    def updateObject(self, parentID, object):
+        """
+        Call-back function if an object is updated.
+        """
+        origin = Origin.Cast(object)
+        if origin:
+            self.handleOrigin(origin, op=OP_UPDATE)
+
     def run(self):
         return StreamApplication.run(self)
 

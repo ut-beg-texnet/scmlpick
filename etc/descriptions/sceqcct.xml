@@ -87,6 +87,48 @@
                                         </description>
                                 </parameter>
                         </group>
+                        <group name="qcheck">
+                                <parameter name="latUncTHR" type="int" default="20">
+                                        <description>
+                                            Set the latitude uncertainty threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
+                                        </description>
+                                </parameter>
+                                <parameter name="lonUncTHR" type="int" default="20">
+                                        <description>
+                                            Set the longitude uncertainty threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
+                                        </description>
+                                </parameter>
+                                <parameter name="depthUncTHR" type="int" default="20">
+                                        <description>
+                                            Set the depth uncertainty threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
+                                        </description>
+                                </parameter>
+                                <parameter name="depthTHR" type="int" default="20">
+                                        <description>
+                                            Set the depth threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
+                                        </description>
+                                </parameter>
+                                <parameter name="azGapTHR" type="int" default="270">
+                                        <description>
+                                            Set the azimuthal gap threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
+                                        </description>
+                                </parameter>
+                                <parameter name="region" type="string" default="none">
+                                        <description>
+                                            The BNA file defining regions (closed polygons) or tuple with 4 elements. Inside this region, the origin evaluation status is TrueOrgEvalStat, and outside is FalseOrgEvalStat. If this is set to none, then the origin location will not be checked against any polygon.
+                                        </description>
+                                </parameter>
+                                <parameter name="TrueOrgEvalStat" type="int" default="5">
+                                        <description>
+                                            Set the origin evaluation status to use when the origin fulfills all quality thresholds. Use integers from 0 to 5. Each integer means following next list: 0=preliminary, 1=confirmed, 2=reviewed, 3=final, 4=rejected, 5=reported.
+                                        </description>
+                                </parameter>
+                                <parameter name="FalseOrgEvalStat" type="int" default="4">
+                                        <description>
+                                            Set the origin evaluation status to use when the origin does not fulfill one or more quality thresholds. Use integers from 0 to 5. Each integer means following next list: 0=preliminary, 1=confirmed, 2=reviewed, 3=final, 4=rejected, 5=reported
+                                        </description>
+                                </parameter>
+                        </group>
                 </configuration>
         </module>
 </seiscomp>
