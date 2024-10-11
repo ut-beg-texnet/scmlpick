@@ -87,6 +87,23 @@
                                         </description>
                                 </parameter>
                         </group>
+                        <group name="ray">
+                                <parameter name="numCPUs" type="int" default="5">
+                                        <description>
+                                            Number of CPUs allocated for running the run_picker() to create the time chunks.
+                                        </description>
+                                </parameter>
+                                <parameter name="maxTimeTasksQueue" type="int" default="1">
+                                        <description>
+                                            Number of given time chunks that are sent to the predictor at the same time. If your time chunk length is equal to one this should be one as well.
+                                        </description>
+                                </parameter>
+                                <parameter name="maxStsTasksQueue" type="int" default="1">
+                                        <description>
+                                            Number of given stations that are sent to the predictor at the same time. This value cannot be greater than eqcct.stasBulk.
+                                        </description>
+                                </parameter>
+                        </group>
                         <group name="qcheck">
                                 <parameter name="latUncTHR" type="int" default="20">
                                         <description>

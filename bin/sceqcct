@@ -6,7 +6,8 @@ Created on Jul 31 2024
 Author of the Software: Camilo Munoz
 """
 
-import sys, os
+import logging as stdlogging
+import sys, os, ray
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -115,6 +116,22 @@ class sceqcct(StreamApplication):
             self.gpuLimit = self.configGetInt('eqcct.gpuLimit')
         except Exception as e:
             logging.info('gpuLimit could not be read : %s' % e)
+
+        #RAY
+        try:
+            self.numCPUs = self.configGetInt('ray.numCPUs')
+        except Exception as e:
+            logging.info('numCPUs could not be read : %s' % e)
+
+        try:
+            self.maxTimeTasksQueue = self.configGetInt('ray.maxTimeTasksQueue')
+        except Exception as e:
+            logging.info('maxTimeTasksQueue could not be read : %s' % e)
+
+        try:
+            self.maxStsTasksQueue = self.configGetInt('ray.maxStsTasksQueue')
+        except Exception as e:
+            logging.info('maxStsTasksQueue could not be read : %s' % e)
 
         #qcheck
         try:
@@ -422,13 +439,17 @@ class sceqcct(StreamApplication):
         Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
         Path(os.path.join(self.ei.shareDir(), "sceqcct/results/logs/picker")).mkdir(exist_ok=True, parents=True)
         pathResutls = os.path.join(self.ei.shareDir(), "sceqcct/results")
-                                                    
-        model = self.predictor.load_model(self.eqcct_Pmodel, self.eqcct_Smodel, f"{pathResutls}/model.log")
+
+        # Load EQCCT model                                        
+        # model = self.predictor.load_model(self.eqcct_Pmodel, self.eqcct_Smodel, f"{pathResutls}/model.log")
 
         # Get picker tasks
         start_time = UTCDateTime(start_time)
         end_time = UTCDateTime(end_time)
-        chunk_time = [[start_time, end_time]]
+        times_list = [[start_time, end_time]]
+
+        log_file_run = f"{pathResutls}/logs/picker/eqcct_run.log"
+        logging.info(f"[{datetime.now()}] Running EQCCT picker. Log file: {log_file_run}")
 
         # Prepare tasks for EQCCT picking
         stations = []
@@ -438,8 +459,39 @@ class sceqcct(StreamApplication):
             if station not in stations:
                 stations.append(station)
 
+
+        tasks = [[f"({i+1}/{len(times_list)})", times_list[i][0].strftime(format="%Y%m%dT%H%M%SZ"), times_list[i][1].strftime(format="%Y%m%dT%H%M%SZ"), stations] for i in range(len(times_list))]
+
+        predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # Allocates X amount of CPUs for the function of creating tasks 
+        ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
+
+        # Submit tasks to ray in a queue
+        # tasks_queue = []
+        # logging.debug(f"[{datetime.now()}] Started EQCCT picking process.\n")
+        # for i in range(len(tasks)):
+        #     while True:
+        #         # Add new task to queue while max is not reached
+        #         if len(tasks_queue) < self.maxTimeTasksQueue:
+        #             tasks_queue.append(self.picker.remote(tasks[i],stream))
+        #             break
+        #         # If there are more tasks than maximum, just process them
+        #         else:
+        #             tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+        #             for finished_task in tasks_finished:
+        #                 log_entry = ray.get(finished_task)
+        #                 logging.info(log_entry + "\n")
+
+        # # After adding all the tasks to queue, process what's left
+        # while tasks_queue:
+        #     tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+        #     for finished_task in tasks_finished:
+        #         log_entry = ray.get(finished_task)
+        #         logging.info(log_entry + "\n")
+        # ray.shutdown()
+
         logging.debug('Sending stations to EQCCT %s'% stations)
-        tasks = [[f"({i+1}/{len(chunk_time)})", chunk_time[i][0], chunk_time[i][1], stations, [], model] for i in range(len(chunk_time))]
+        tasks = [[f"({i+1}/{len(times_list)})", times_list[i][0], times_list[i][1], stations] for i in range(len(times_list))]
 
         # Run picker
         for task in tasks:
@@ -447,7 +499,7 @@ class sceqcct(StreamApplication):
 
     def picker(self,task,stream):
 
-        pos, starttime, endtime, stations, params, model = task
+        pos, starttime, endtime, stations = task
         begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
         end = endtime.strftime(format="%Y%m%dT%H%M%SZ")
 
@@ -456,7 +508,7 @@ class sceqcct(StreamApplication):
 
         output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
         
-        picks = self.predictor.mseed_predictor(stream            = stream,
+        picks = self.predictor.mseed_predictor(stream = stream,
                         output_dir    = output_eqcct,
                         stations2use  = stations,
                         P_threshold   = self.eqcctPthr,
@@ -466,10 +518,15 @@ class sceqcct(StreamApplication):
                         batch_size    = self.eqcctBatchSize,
                         overwrite     = True,
                         log_file      = log_file,
-                        model         = model,
+                        # model         = model,
+                        p_model       = self.eqcct_Pmodel,
+                        s_model       = self.eqcct_Smodel,
+                        numCPUs       = self.numCPUs,
                         gpu_id        = self.gpuID,
-                        gpu_limit     = self.gpuLimit)
+                        gpu_limit     = self.gpuLimit,
+                        maxStsTasksQueue = self.maxStsTasksQueue)
         
+        print(picks)
         self.scPhase(picks)
 
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
@@ -581,7 +638,6 @@ class sceqcct(StreamApplication):
             logging.error("Error changing origin evaluation status %s" % origin.publicID())
         return origin
 
-
     def qualityCheckOrigin(self, origin):
 
         latUnc = origin.latitude().uncertainty()
@@ -690,7 +746,6 @@ class sceqcct(StreamApplication):
             msg.attach(n)
             out = self.connection().send(msg)
             logging.debug("Evaluation status updated? %s" % "Yes" if out else "No, failed" )
-
 
     def addObject(self, parentID, object):
         """

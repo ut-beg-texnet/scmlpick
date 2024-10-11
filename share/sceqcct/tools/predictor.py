@@ -1,3 +1,4 @@
+import ray
 import csv
 import sys
 import time
@@ -5,6 +6,7 @@ import glob
 import obspy
 import shutil
 import platform
+import logging
 import numpy as np
 from os import listdir
 from os.path import join
@@ -446,54 +448,54 @@ def tf_environ(gpu_id, gpu_limit=None):
         print(f"[{datetime.now()}] GPU processing disabled, using CPU.")
 
 
-def load_model(input_modelP, input_modelS, log_file="results/logs/model.log"):
-    print(f"[{datetime.now()}] Loading EQCCT model. Log file: {log_file}")
+
+def load_eqcct_model(input_modelP, input_modelS):
+    # print(f"[{datetime.now()}] Loading EQCCT model.")
     
-    with open(log_file, mode="w", buffering=1, encoding='utf-8') as log:
-        log.write(f"*** Loading the model ...")
+    # with open(log_file, mode="w", buffering=1) as log:
+    #     log.write(f"*** Loading the model ...\n")
 
-        # Model CCT
-        inputs = tf.keras.layers.Input(shape=input_shape,name='input')
+    # Model CCT
+    inputs = tf.keras.layers.Input(shape=input_shape,name='input')
 
-        #featuresP = create_cct_model(inputs)
-        #featuresS = create_cct_model(inputs)
-        #logitp  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_P1')(featuresP)
-        #logits  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_S1')(featuresS)
-        #logitp = tf.keras.layers.Reshape((6000,1), name='picker_P')(logitp)
-        #logits = tf.keras.layers.Reshape((6000,1), name='picker_S')(logits)
+    #featuresP = create_cct_model(inputs)
+    #featuresS = create_cct_model(inputs)
+    #logitp  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_P1')(featuresP)
+    #logits  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_S1')(featuresS)
+    #logitp = tf.keras.layers.Reshape((6000,1), name='picker_P')(logitp)
+    #logits = tf.keras.layers.Reshape((6000,1), name='picker_S')(logits)
 
-        featuresP = create_cct_modelP(inputs)
-        featuresP = tf.keras.layers.Reshape((6000,1))(featuresP)
+    featuresP = create_cct_modelP(inputs)
+    featuresP = tf.keras.layers.Reshape((6000,1))(featuresP)
 
-        featuresS = create_cct_modelS(inputs)
-        featuresS = tf.keras.layers.Reshape((6000,1))(featuresS)
+    featuresS = create_cct_modelS(inputs)
+    featuresS = tf.keras.layers.Reshape((6000,1))(featuresS)
 
-        logitp  = tf.keras.layers.Conv1D(1,  15, strides =(1), padding='same',activation='sigmoid', kernel_initializer='he_normal',name='picker_P')(featuresP)
-        logits  = tf.keras.layers.Conv1D(1,  15, strides =(1), padding='same',activation='sigmoid', kernel_initializer='he_normal',name='picker_S')(featuresS)
+    logitp  = tf.keras.layers.Conv1D(1,  15, strides =(1), padding='same',activation='sigmoid', kernel_initializer='he_normal',name='picker_P')(featuresP)
+    logits  = tf.keras.layers.Conv1D(1,  15, strides =(1), padding='same',activation='sigmoid', kernel_initializer='he_normal',name='picker_S')(featuresS)
 
-        modelP = tf.keras.models.Model(inputs=[inputs], outputs=[logitp])
-        modelS = tf.keras.models.Model(inputs=[inputs], outputs=[logits])
+    modelP = tf.keras.models.Model(inputs=[inputs], outputs=[logitp])
+    modelS = tf.keras.models.Model(inputs=[inputs], outputs=[logits])
 
-        model = tf.keras.models.Model(inputs=[inputs], outputs=[logitp,logits])
+    model = tf.keras.models.Model(inputs=[inputs], outputs=[logitp,logits])
 
-        summary_output = StringIO()
-        with redirect_stdout(summary_output):
-            model.summary()
-        log.write(str(summary_output.getvalue()))
-        log.write('')
+    summary_output = StringIO()
+    with redirect_stdout(summary_output):
+        model.summary()
+    # log.write(summary_output.getvalue())
+    # log.write('\n')
 
-        sgd = tf.keras.optimizers.Adam()
-        model.compile(optimizer=sgd,
-                    loss=['binary_crossentropy','binary_crossentropy'],
-                    metrics=['acc',f1,precision, recall])    
-        
-        modelP.load_weights(input_modelP)
-        modelS.load_weights(input_modelS)
+    sgd = tf.keras.optimizers.Adam()
+    model.compile(optimizer=sgd,
+                loss=['binary_crossentropy','binary_crossentropy'],
+                metrics=['acc',f1,precision, recall])    
+    
+    modelP.load_weights(input_modelP)
+    modelS.load_weights(input_modelS)
 
-        log.write(f"*** Loading is complete!")
+    # log.write(f"*** Loading is complete!")
 
     return model
-
         
 def mseed_predictor(stream=None,
               output_dir="detections",
@@ -505,9 +507,13 @@ def mseed_predictor(stream=None,
               batch_size=500,
               overwrite=False,
               log_file="./results/logs/picker/eqcct.log",           
-              model=None,
+            #   model=None,
+              p_model = None,
+              s_model = None,
+              numCPUs = 1,
               gpu_id=None,
-              gpu_limit=None): 
+              gpu_limit=None,
+              maxStsTasksQueue=1): 
     
     """ 
     
@@ -564,66 +570,71 @@ def mseed_predictor(stream=None,
     "overlap": overlap,
     "batch_size": batch_size,    
     "gpu_id": gpu_id,
-    "gpu_limit": gpu_limit 
+    "gpu_limit": gpu_limit,
+    "p_model":p_model,
+    "s_model":s_model
     }
 
     picks = []
-    with open(log_file, mode="w", buffering=1) as log:
-        if not model:
-            log.write(f"[{datetime.now()}] Please provide a model for predictions.")
-            sys.exit()
+    out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
 
-        out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
-        if os.path.isdir(out_dir):
-            log.write(f"*** {out_dir} already exists!")
-            if overwrite == True:
-                inp = "y"
-                log.write(f"[{datetime.now()}] Overwriting your previous results.")
-            else:
-                inp = input(" --> Type (Yes or y) to create a new empty directory! This will erase your previous results so make a copy if you want them.")
-            if inp.lower() in ["yes", "y"]:
-                shutil.rmtree(out_dir)  
-                os.makedirs(out_dir) 
-            else:
-                log.write("Okay.")
-                return
-        
+    with open(log_file, mode="w", buffering=1) as log:
         try:
             station_list = stations2use
             station_list = sorted(set(station_list))
         except Exception as exp:
             log.write(f"{exp}")
             return
-
         log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
         
-        # Filter stations, pending
-        # if stations2use:
-        #     station_list = [x for x in station_list if x in stations2use]
-        #     log.write(f"[{datetime.now()}] Using {len(station_list)} station(s) after filtering.")
-        
-        tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], out_dir, args, model] for i in range(len(station_list))]
-
+        tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args, out_dir] for i in range(len(station_list))]
         if not tasks:
             return
         #parallel_predict(tasks[0])
-        
-        # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(parallel_predict, task) for task in tasks]
-            for future in as_completed(futures):
-                result_dict = future.result()
-                log_entry = result_dict['info']
-                picks_parall = result_dict['picks']
-                picks.extend(picks_parall)
-                log.write(log_entry + "")
-        log.write("------- END OF FILE -------")
+        # Submit tasks to ray in a queue
+        tasks_queue = []
+        log.write(f"[{datetime.now()}] Started EQCCT picking process.\n")
+        for i in range(len(tasks)):
+            while True:
+                # Add new task to queue while max is not reached
+                if len(tasks_queue) < maxStsTasksQueue:
+                    tasks_queue.append(parallel_predict.remote(tasks[i]))
+                    break
+                # If there are more tasks than maximum, just process them
+                else:
+                    tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+                    for finished_task in tasks_finished:
+                        picks_parall = ray.get(finished_task)
+                        picks.append(picks_parall['picks'])
+                        log.write(f"{picks_parall['info']}")
+
+        # After adding all the tasks to queue, process what's left
+        while tasks_queue:
+            tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+            for finished_task in tasks_finished:
+                picks_parall = ray.get(finished_task)
+                for pick in picks_parall['picks']:
+                    picks.append(pick)
+                log.write(f"{picks_parall['info']}")
+        ray.shutdown()
+
+        # # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
+        # with ThreadPoolExecutor(max_workers=5) as executor:
+        #     futures = [executor.submit(parallel_predict, task) for task in tasks]
+        #     for future in as_completed(futures):
+        #         result_dict = future.result()
+        #         log_entry = result_dict['info']
+        #         picks_parall = result_dict['picks']
+        #         picks.extend(picks_parall)
+        #         log.write(log_entry + "")
+        # log.write("------- END OF FILE -------")
     
     return (picks)
 
-
+@ray.remote
 def parallel_predict(predict_args):
-    stream, pos, st, out_dir, args, model = predict_args
+    stream, pos, st, args, out_dir= predict_args
+    model = load_eqcct_model(args["p_model"], args["s_model"])
     save_dir = os.path.join(out_dir, str(st)+'_outputs')
     if os.path.isdir(save_dir):
         shutil.rmtree(save_dir)
