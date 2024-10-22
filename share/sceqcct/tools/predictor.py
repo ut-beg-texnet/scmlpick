@@ -616,8 +616,6 @@ def mseed_predictor(stream=None,
                 for pick in picks_parall['picks']:
                     picks.append(pick)
                 log.write(f"{picks_parall['info']}")
-        ray.shutdown()
-
         # # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
         # with ThreadPoolExecutor(max_workers=5) as executor:
         #     futures = [executor.submit(parallel_predict, task) for task in tasks]

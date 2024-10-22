@@ -184,6 +184,10 @@ class sceqcct(StreamApplication):
         self.startTime = UTCDateTime(pd.to_datetime(str(self.now)) + timedelta(seconds=self.startLatency))
         logging.info("Starting time %s " % self.now)
         logging.info("Starting time plus start latency %s " % self.startTime)
+        predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # Allocates X amount of CPUs for the function of creating tasks 
+        ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
+        logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
         return True
 
     def updateStreams(self):
@@ -462,10 +466,6 @@ class sceqcct(StreamApplication):
 
         tasks = [[f"({i+1}/{len(times_list)})", times_list[i][0].strftime(format="%Y%m%dT%H%M%SZ"), times_list[i][1].strftime(format="%Y%m%dT%H%M%SZ"), stations] for i in range(len(times_list))]
 
-        predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
-        # Allocates X amount of CPUs for the function of creating tasks 
-        ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
-
         # Submit tasks to ray in a queue
         # tasks_queue = []
         # logging.debug(f"[{datetime.now()}] Started EQCCT picking process.\n")
@@ -525,8 +525,6 @@ class sceqcct(StreamApplication):
                         gpu_id        = self.gpuID,
                         gpu_limit     = self.gpuLimit,
                         maxStsTasksQueue = self.maxStsTasksQueue)
-        
-        print(picks)
         self.scPhase(picks)
 
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
@@ -762,6 +760,12 @@ class sceqcct(StreamApplication):
         origin = Origin.Cast(object)
         if origin:
             self.handleOrigin(origin, op=OP_UPDATE)
+
+    def handleClose(self):
+        ray.shutdown()
+
+    def handleAutoShutdown(self):
+        ray.shutdown()
 
     def run(self):
         return StreamApplication.run(self)
