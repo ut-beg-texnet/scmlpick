@@ -605,7 +605,8 @@ def mseed_predictor(stream=None,
                     tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
                     for finished_task in tasks_finished:
                         picks_parall = ray.get(finished_task)
-                        picks.append(picks_parall['picks'])
+                        for pick in picks_parall['picks']:
+                            picks.append(pick)
                         log.write(f"{picks_parall['info']}")
 
         # After adding all the tasks to queue, process what's left
