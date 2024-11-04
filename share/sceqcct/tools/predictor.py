@@ -588,6 +588,7 @@ def mseed_predictor(stream=None,
         log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
         
         tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args, out_dir] for i in range(len(station_list))]
+
         if not tasks:
             return
         #parallel_predict(tasks[0])
@@ -742,10 +743,7 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     #     st += temp_st
     # else:
     #     return
-
-    # print('ANTES DE PROCESAR DATOS')
-    # print(st)
-    
+   
     for tr in st:
         start_time = tr.stats.starttime
         end_time = tr.stats.endtime
@@ -756,11 +754,8 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     start_time = st[0].stats.starttime
     end_time = st[0].stats.endtime
     staName = st[0].stats.station
-    # print(f'Start time {start_time}')
-    # print(f'End time {end_time}')
 
     # st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
-
 
     st.taper(max_percentage=0.05, type='cosine')
     st.trim(min([tr.stats.starttime for tr in st])-10, max([tr.stats.endtime for tr in st])+10, pad=True, fill_value=0)
