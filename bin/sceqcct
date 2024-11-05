@@ -18,6 +18,8 @@ from seiscomp import logging, geo
 from obspy import Stream, Trace, UTCDateTime
 from pathlib import Path
 from seiscomp.system import Environment
+from multiprocessing import Pool
+
 # import main_picks as picks2xml
 
 class sceqcct(StreamApplication):
@@ -185,6 +187,9 @@ class sceqcct(StreamApplication):
         logging.info("Starting time %s " % self.now)
         logging.info("Starting time plus start latency %s " % self.startTime)
         predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # Creating pool for multiprocessing 
+        pool_size = 4 # New cfg file parameter
+        self.pool = Pool(processes=pool_size)
         # Allocates X amount of CPUs for the function of creating tasks 
         ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
         logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
@@ -486,10 +491,12 @@ class sceqcct(StreamApplication):
                 logging.info(f'{trace}')
             
             # Run EQCCT picker
-            # self.run_picker(startMinute,endMinute,self.oneMinuteStream)
+            self.sendTask(startMinute,endMinute,self.oneMinuteStream)
+            # self.run_picker()
             self.oneMinuteStream = Stream()
             self.staSend = []
 
+    # @ray.remote
     def run_picker(self,start_time,end_time,stream):
         # Create working dirs       
         Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
@@ -548,6 +555,12 @@ class sceqcct(StreamApplication):
         # Run picker
         for task in tasks:
             self.picker(task,stream)
+
+    def sendTask(self,startMinute,endMinute,oneMinuteStream):
+        # Call the function asynchronously
+        self.pool.apply_async(self.run_picker, (startMinute, endMinute, oneMinuteStream))
+        # self.run_picker.remote(self,startMinute,endMinute,oneMinuteStream)
+        logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
 
     def picker(self,task,stream):
 
