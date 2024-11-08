@@ -92,21 +92,18 @@ class sceqcct(StreamApplication):
             self.minStasBulk = self.configGetInt('eqcct.minStasBulk')
         except Exception as e:
             logging.info('minStasBulk could not be read : %s' % e)
-        
         try:
             self.firstWait = self.configGetInt('eqcct.firstWait')
         except Exception as e:
             logging.info('firstWait could not be read : %s' % e)
         try:
-            self.secondWait = self.secondWait('eqcct.secondWait')
+            self.secondWait = self.configGetInt('eqcct.secondWait')
         except Exception as e:
             logging.info('secondWait could not be read : %s' % e)
         try:
             self.maxWait = self.configGetInt('eqcct.maxWait')
         except Exception as e:
             logging.info('maxWait could not be read : %s' % e)
-
-
         try:
             self.startLatency = self.configGetInt('eqcct.startLatency')
         except Exception as e:
