@@ -41,9 +41,26 @@
                                             Define the time in seconds to overlap with the previous window.
                                         </description>
                                 </parameter>
-                                <parameter name="stasBulk" type="int" default="5">
+                                <parameter name="minStasBulk" type="int" default="5">
                                         <description>
-                                            Number of stations to send at a time to eqcct.
+                                            Minimum number of stations with windowLength data available to send to EQCCT after firstWait. 
+                                            This number should be less than the total stations.
+                                            At least this number of real-time stations must be available to produce picks.
+                                        </description>
+                                </parameter>
+                                <parameter name="firstWait" type="int" default="5">
+                                        <description>
+                                            Minimum delay between now and the end time of the last minute saved in memory to compute all data available. First computation.
+                                        </description>
+                                </parameter>
+                                <parameter name="secondWait" type="int" default="3">
+                                        <description>
+                                            Minimum time to wait after first computation to proceed with Second computation.
+                                        </description>
+                                </parameter>
+                                <parameter name="maxWait" type="int" default="10">
+                                        <description>
+                                            Maximum time to wait after first computation to proceed with second computation.
                                         </description>
                                 </parameter>
                                 <parameter name="startLatency" type="int" default="60">

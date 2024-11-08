@@ -498,7 +498,7 @@ def load_eqcct_model(input_modelP, input_modelS):
     return model
         
 def mseed_predictor(stream=None,
-              output_dir="detections",
+            #   output_dir="detections",
               stations2use=None,
               P_threshold=0.1,
               S_threshold=0.1, 
@@ -506,7 +506,7 @@ def mseed_predictor(stream=None,
               overlap = 0.3,
               batch_size=500,
               overwrite=False,
-              log_file="./results/logs/picker/eqcct.log",           
+            #   log_file="./results/logs/picker/eqcct.log",           
             #   model=None,
               p_model = None,
               s_model = None,
@@ -563,7 +563,7 @@ def mseed_predictor(stream=None,
     """ 
  
     args = {
-    "output_dir": output_dir,
+    # "output_dir": output_dir,
     "P_threshold": P_threshold,
     "S_threshold": S_threshold,
     "normalization_mode": normalization_mode,
@@ -576,84 +576,87 @@ def mseed_predictor(stream=None,
     }
 
     picks = []
-    out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
+    # out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
 
-    with open(log_file, mode="w", buffering=1) as log:
-        try:
-            station_list = stations2use
-            station_list = sorted(set(station_list))
-        except Exception as exp:
-            log.write(f"{exp}")
-            return
-        log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
-        
-        tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args, out_dir] for i in range(len(station_list))]
+    # with open(log_file, mode="w", buffering=1) as log:
+    try:
+        station_list = stations2use
+        station_list = sorted(set(station_list))
+    except Exception as exp:
+        # log.write(f"{exp}")
+        return
+    # log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
+    
+    # tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args, out_dir] for i in range(len(station_list))]
+    tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args] for i in range(len(station_list))]
 
-        if not tasks:
-            return
-        #parallel_predict(tasks[0])
-        # Submit tasks to ray in a queue
-        tasks_queue = []
-        log.write(f"[{datetime.now()}] Started EQCCT picking process.\n")
-        for i in range(len(tasks)):
-            while True:
-                # Add new task to queue while max is not reached
-                if len(tasks_queue) < maxStsTasksQueue:
-                    tasks_queue.append(parallel_predict.remote(tasks[i]))
-                    break
-                # If there are more tasks than maximum, just process them
-                else:
-                    tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
-                    for finished_task in tasks_finished:
-                        picks_parall = ray.get(finished_task)
-                        for pick in picks_parall['picks']:
-                            picks.append(pick)
-                        log.write(f"{picks_parall['info']}")
+    if not tasks:
+        return
+    #parallel_predict(tasks[0])
+    # Submit tasks to ray in a queue
+    tasks_queue = []
+    # log.write(f"[{datetime.now()}] Started EQCCT picking process.\n")
+    for i in range(len(tasks)):
+        while True:
+            # Add new task to queue while max is not reached
+            if len(tasks_queue) < maxStsTasksQueue:
+                tasks_queue.append(parallel_predict.remote(tasks[i]))
+                break
+            # If there are more tasks than maximum, just process them
+            else:
+                tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+                for finished_task in tasks_finished:
+                    picks_parall = ray.get(finished_task)
+                    for pick in picks_parall['picks']:
+                        picks.append(pick)
+                    # log.write(f"{picks_parall['info']}")
 
-        # After adding all the tasks to queue, process what's left
-        while tasks_queue:
-            tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
-            for finished_task in tasks_finished:
-                picks_parall = ray.get(finished_task)
-                for pick in picks_parall['picks']:
-                    picks.append(pick)
-                log.write(f"{picks_parall['info']}")
-        # # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
-        # with ThreadPoolExecutor(max_workers=5) as executor:
-        #     futures = [executor.submit(parallel_predict, task) for task in tasks]
-        #     for future in as_completed(futures):
-        #         result_dict = future.result()
-        #         log_entry = result_dict['info']
-        #         picks_parall = result_dict['picks']
-        #         picks.extend(picks_parall)
-        #         log.write(log_entry + "")
-        # log.write("------- END OF FILE -------")
+    # After adding all the tasks to queue, process what's left
+    while tasks_queue:
+        tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
+        for finished_task in tasks_finished:
+            picks_parall = ray.get(finished_task)
+            for pick in picks_parall['picks']:
+                picks.append(pick)
+            # log.write(f"{picks_parall['info']}")
+    # # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
+    # with ThreadPoolExecutor(max_workers=5) as executor:
+    #     futures = [executor.submit(parallel_predict, task) for task in tasks]
+    #     for future in as_completed(futures):
+    #         result_dict = future.result()
+    #         log_entry = result_dict['info']
+    #         picks_parall = result_dict['picks']
+    #         picks.extend(picks_parall)
+    #         log.write(log_entry + "")
+    # log.write("------- END OF FILE -------")
     
     return (picks)
 
 @ray.remote
 def parallel_predict(predict_args):
-    stream, pos, st, args, out_dir= predict_args
+    # stream, pos, st, args, out_dir= predict_args
+    stream, pos, st, args = predict_args
     model = load_eqcct_model(args["p_model"], args["s_model"])
-    save_dir = os.path.join(out_dir, str(st)+'_outputs')
-    if os.path.isdir(save_dir):
-        shutil.rmtree(save_dir)
-    os.makedirs(save_dir)
+
+    # save_dir = os.path.join(out_dir, str(st)+'_outputs')
+    # if os.path.isdir(save_dir):
+    #     shutil.rmtree(save_dir)
+    # os.makedirs(save_dir)
     
-    csvPr_gen = open(os.path.join(save_dir,'X_prediction_results.csv'), 'w')     
-    predict_writer = csv.writer(csvPr_gen, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    predict_writer.writerow(['file_name', 
-                            'network',
-                            'station',
-                            'instrument_type',
-                            'station_lat',
-                            'station_lon',
-                            'station_elv',
-                            'p_arrival_time',
-                            'p_probability',
-                            's_arrival_time',
-                            's_probability'])  
-    csvPr_gen.flush()
+    # csvPr_gen = open(os.path.join(save_dir,'X_prediction_results.csv'), 'w')     
+    # predict_writer = csv.writer(csvPr_gen, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    # predict_writer.writerow(['file_name', 
+    #                         'network',
+    #                         'station',
+    #                         'instrument_type',
+    #                         'station_lat',
+    #                         'station_lon',
+    #                         'station_elv',
+    #                         'p_arrival_time',
+    #                         'p_probability',
+    #                         's_arrival_time',
+    #                         's_probability'])  
+    # csvPr_gen.flush()
     #print(f"[{datetime.now()}] Started working on {st}...")
     
     start_Predicting = time.time()  

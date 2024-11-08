@@ -7,7 +7,7 @@ Author of the Software: Camilo Munoz
 """
 
 import logging as stdlogging
-import sys, os, ray
+import sys, os, ray, time, threading
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -19,6 +19,9 @@ from obspy import Stream, Trace, UTCDateTime
 from pathlib import Path
 from seiscomp.system import Environment
 from multiprocessing import Pool
+share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
+sys.path.append(share_path)
+from predictor import mseed_predictor
 
 # import main_picks as picks2xml
 
@@ -33,10 +36,10 @@ class sceqcct(StreamApplication):
         self.setLoadInventoryEnabled(True)
 
         self.ei = Environment.Instance()
-        share_path = os.path.join(self.ei.shareDir(), "sceqcct/tools")
-        # share_path = os.path.abspath("../share/sceqcct/tools")
-        sys.path.append(share_path)
-        self.predictor = __import__('predictor')
+        # share_path = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # # share_path = os.path.abspath("../share/sceqcct/tools")
+        # sys.path.append(share_path)
+        # self.predictor = __import__('predictor')
         self.initStreams = []
         self.streams = []
         self.stream = Stream()
@@ -45,6 +48,11 @@ class sceqcct(StreamApplication):
         self.stasDict = {}
         self.stasPick = set()
         self.staSend = []
+        self.wait = False
+        # Shared list of task IDs
+        self.tasks_ids = []
+        # Control variable to stop monitoring when there are no more tasks
+        self.tasks_ids_end = threading.Event()
 
     def initConfiguration(self):
         """
@@ -81,9 +89,24 @@ class sceqcct(StreamApplication):
         except Exception as e:
             logging.info('timeShift could not be read : %s' % e)
         try:
-            self.stasBulk = self.configGetInt('eqcct.stasBulk')
+            self.minStasBulk = self.configGetInt('eqcct.minStasBulk')
         except Exception as e:
-            logging.info('stasBulk could not be read : %s' % e)
+            logging.info('minStasBulk could not be read : %s' % e)
+        
+        try:
+            self.firstWait = self.configGetInt('eqcct.firstWait')
+        except Exception as e:
+            logging.info('firstWait could not be read : %s' % e)
+        try:
+            self.secondWait = self.secondWait('eqcct.secondWait')
+        except Exception as e:
+            logging.info('secondWait could not be read : %s' % e)
+        try:
+            self.maxWait = self.configGetInt('eqcct.maxWait')
+        except Exception as e:
+            logging.info('maxWait could not be read : %s' % e)
+
+
         try:
             self.startLatency = self.configGetInt('eqcct.startLatency')
         except Exception as e:
@@ -188,8 +211,13 @@ class sceqcct(StreamApplication):
         logging.info("Starting time plus start latency %s " % self.startTime)
         predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
         # Creating pool for multiprocessing 
-        pool_size = 4 # New cfg file parameter
-        self.pool = Pool(processes=pool_size)
+        # pool_size = 4 # New cfg file parameter
+        # self.pool = Pool(processes=pool_size)
+
+        # Start a thread to monitor the results without blocking the main process
+        self.monitorThread = threading.Thread(target=self.monitorTasks, args=(self.tasks_ids,))
+        self.monitorThread.start()
+
         # Allocates X amount of CPUs for the function of creating tasks 
         ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
         logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
@@ -276,6 +304,24 @@ class sceqcct(StreamApplication):
         return streamIDs
                 
     def handleRecord(self, rec):
+
+        params = {
+            "share_path" : self.ei.shareDir(),
+            "P_threshold": self.eqcctPthr,
+            "S_threshold": self.eqcctSthr,
+            "normalization_mode": "std",
+            "overlap": self.eqcctOverlap,
+            "batch_size": self.eqcctBatchSize,
+            "overwrite": True,
+            # "model": model,
+            "p_model": self.eqcct_Pmodel,
+            "s_model": self.eqcct_Smodel,
+            "numCPUs": self.numCPUs,
+            "gpu_id": self.gpuID,
+            "gpu_limit": self.gpuLimit,
+            "maxStsTasksQueue": self.maxStsTasksQueue,
+            }
+
         # diftime = diftime.seconds()
         # streamid = "%s.%s.%s.%s"%tuple(rec.streamID().split('.'))
 
@@ -369,9 +415,6 @@ class sceqcct(StreamApplication):
                             self.stasPick.add(self.stream[i].stats.station)
                         else:
                             self.streamPick[index_found] = self.stream[i]
-                            # return
-                    # else:
-                        # return
             if not inSt:
                     self.stream.append(tr)
                     # return
@@ -379,28 +422,15 @@ class sceqcct(StreamApplication):
         for trace in reversed(self.stream):
             lenght = trace.stats.endtime - trace.stats.starttime
             if lenght > self.timeRemoveTrace:
-                self.stream.remove(trace)
-
-        # print("stream")
-        # print(self.stream.__str__(extended=True))
-        
+                self.stream.remove(trace)     
         
         logging.info(f"STREAM PICK")
         for i, trace in enumerate(self.streamPick):
             logging.info(f'{trace}')
 
-        # print('staSend')
-        # print(self.staSend)
-        # print('stasPick')
-        # print(self.stasPick)
-
         for sta in self.stasPick:
             checkSta = True
-            # print('stasPick')
-            # print(sta)
             for recChann in self.stasDict[sta]:
-                # print('recChann')
-                # print(recChann)
                 checkChann = False
                 for i,trace in enumerate(self.streamPick):
                     if trace.stats.station == sta:
@@ -417,29 +447,33 @@ class sceqcct(StreamApplication):
 
         [self.stasPick.remove(sta) for sta in self.staSend if sta in self.stasPick]
 
-        # print('staSend')
-        # print(self.staSend)
-        # print('stasPick')
-        # print(self.stasPick)
-
         # Check delay for stations in memory
-        self.maxDelay = 90 ### INCLUDE IN CFG
-        sendNow = False
+        staSet = set()
         for i,trace in enumerate(self.streamPick):
-            if self.streamPick[i].stats.station in self.staSend:
+            sta = self.streamPick[i].stats.station
+            if sta in self.staSend and sta not in staSet:
                 delayEnd = UTCDateTime(Time.GMT()) - trace.stats.endtime
                 delayStart = UTCDateTime(Time.GMT()) - trace.stats.starttime
-                print('delayEnd')
-                print(delayEnd)
-                print('delayStart')
-                print(delayStart)
-                if delayEnd >= self.maxDelay or delayStart >= self.maxDelay+self.windowLength:
-                    sendNow = True
+                if delayEnd >= self.firstWait or delayStart >= self.firstWait + self.windowLength:
+                    staSet.add(sta)
+        
+        sendNow = False
+        if self.wait:
+            delay = UTCDateTime(Time.GMT()) - self.sendTime
+            if delay >= self.maxWait:
+                self.wait == False
+            elif delay >= self.secondWait and len(self.staSend) > 0:
+                sendNow = True
 
         toRemove = []
-        if len(self.staSend) >= self.stasBulk or sendNow:
+        if (len(self.staSend) >= self.minStasBulk and len(staSet) >= self.minStasBulk) or sendNow:
             if sendNow:
-                logging.info(f"Sending now due to delay over threshold")
+                logging.info(f"Sending now due to second delay")
+                self.wait = False
+            else:
+                logging.info(f"Sending now due to first delay")
+                self.sendTime = UTCDateTime(Time.GMT())
+                self.wait = True
             # Process the one-minute stream
             for i,trace in enumerate(self.streamPick):
                 if self.streamPick[i].stats.station in self.staSend:
@@ -459,9 +493,6 @@ class sceqcct(StreamApplication):
                         continue
             
             for i in sorted(toRemove, reverse=True): del self.streamPick[i]
-
-            # print("one_minute_stream")
-            # print(self.oneMinuteStream)
 
             for i,trace in enumerate(self.stream):
                 for tr in self.oneMinuteStream:
@@ -483,25 +514,33 @@ class sceqcct(StreamApplication):
                             logging.error(f"Error when slice the trace %s" % self.stream[i])
                         # print(self.stream[i])
             
-            # print("stream after slice")
-            # print(self.stream)
-
             logging.info(f"ONE MINUTE STREAM")
             for i, trace in enumerate(self.oneMinuteStream):
                 logging.info(f'{trace}')
             
             # Run EQCCT picker
-            self.sendTask(startMinute,endMinute,self.oneMinuteStream)
+            # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
+            self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
+            logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStream} assigned.")
+            logging.info(f"The main process continues to generate and launch tasks.")
+
+            # resultados = ray.get(self.tasks_ids)
+            # print("Resultados de las tareas secundarias:", resultados)
+
+            # self.sendTask(startMinute,endMinute,self.oneMinuteStream)
             # self.run_picker()
+
             self.oneMinuteStream = Stream()
             self.staSend = []
 
-    # @ray.remote
-    def run_picker(self,start_time,end_time,stream):
-        # Create working dirs       
-        Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
-        Path(os.path.join(self.ei.shareDir(), "sceqcct/results/logs/picker")).mkdir(exist_ok=True, parents=True)
-        pathResutls = os.path.join(self.ei.shareDir(), "sceqcct/results")
+    @staticmethod
+    @ray.remote
+    def run_picker(start_time,end_time,stream,params):
+        
+        # Create working dirs 
+        #Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
+        #Path(os.path.join(self.ei.shareDir(), "sceqcct/results/logs/picker")).mkdir(exist_ok=True, parents=True)
+        #pathResutls = os.path.join(self.ei.shareDir(), "sceqcct/results")
 
         # Load EQCCT model                                        
         # model = self.predictor.load_model(self.eqcct_Pmodel, self.eqcct_Smodel, f"{pathResutls}/model.log")
@@ -511,8 +550,8 @@ class sceqcct(StreamApplication):
         end_time = UTCDateTime(end_time)
         times_list = [[start_time, end_time]]
 
-        log_file_run = f"{pathResutls}/logs/picker/eqcct_run.log"
-        logging.info(f"[{datetime.now()}] Running EQCCT picker. Log file: {log_file_run}")
+        #log_file_run = f"{pathResutls}/logs/picker/eqcct_run.log"
+        #logging.info(f"[{datetime.now()}] Running EQCCT picker. Log file: {log_file_run}")
 
         # Prepare tasks for EQCCT picking
         stations = []
@@ -554,44 +593,95 @@ class sceqcct(StreamApplication):
 
         # Run picker
         for task in tasks:
-            self.picker(task,stream)
+            picks = sceqcct.picker(task,stream,params)
 
-    def sendTask(self,startMinute,endMinute,oneMinuteStream):
+        return picks
+
+    def monitorTasks(self, tasks_ids):
+        results = []
+        
+        while tasks_ids or not self.tasks_ids_end.is_set():
+            # We check the completed results without blocking
+            if tasks_ids:
+                results_ready, tasks_ids[:] = ray.wait(tasks_ids, num_returns=len(tasks_ids), timeout=1)
+            
+                # We process the results that are ready
+                for result_id in results_ready:
+                    result = ray.get(result_id)
+                    logging.info(f"Result received on the monitor: {result}")
+                    self.scPhase(result)
+                    results.append(result)
+            time.sleep(1)  # Short pause to avoid excessive CPU usage
+            logging.info(f"Pending tasks on the monitor: {len(tasks_ids)}")
+
+        logging.info(f"The monitor has processed all the results.")
+        return results
+
         # Call the function asynchronously
-        self.pool.apply_async(self.run_picker, (startMinute, endMinute, oneMinuteStream))
-        # self.run_picker.remote(self,startMinute,endMinute,oneMinuteStream)
-        logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
+        # print('SEND TASK')
+        # result = self.pool.apply_async(sceqcct.run_picker, (startMinute, endMinute, oneMinuteStream, params))
+        # print(result.get())
 
-    def picker(self,task,stream):
+        # task = sceqcct.run_picker.remote(startMinute,endMinute,oneMinuteStream,params)
+        # self.tasks.append(task)
+        # logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
+
+        # # Process results as they are ready without blocking
+        # async def process_results():
+        #     while self.tasks:
+        #         # Wait for any task to be ready
+        #         ready, self.tasks = ray.wait(self.tasks, num_returns=1, timeout=1)
+
+        #         # Process the result of the ready task
+        #         for task in ready:
+        #             result = ray.get(task)  # Retrieve the result
+        #             print(f"Processed result: {result}")
+        #             self.scPhase(result)
+        #         # Main process can continue while tasks are still pending
+        #         print("Main process continues working...")
+        # # Continue doing other work in the main process
+        # print("Main process doing other work while Ray tasks run in background...")
+
+        # # Run the result processing concurrently with other tasks
+        # asyncio.create_task(process_results())
+
+    @staticmethod
+    def picker(task,stream,params):
+
+        picks = None
+        eqcctPath = os.path.join(params['share_path'], "sceqcct/tools")
+        # share_path = os.path.abspath("../share/sceqcct/tools")
+        sys.path.append(eqcctPath)
+        predictor = __import__('predictor')
 
         pos, starttime, endtime, stations = task
-        begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
-        end = endtime.strftime(format="%Y%m%dT%H%M%SZ")
+        # begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
+        # end = endtime.strftime(format="%Y%m%dT%H%M%SZ")
 
-        log_file = os.path.join(self.ei.shareDir(), f"sceqcct/results/logs/picker/{begin}_{end}.log")
-        logging.info(f"[{datetime.now()}] Running EQCCT picker {pos}. Log file: {log_file}")
+        #log_file = os.path.join(self.ei.shareDir(), f"sceqcct/results/logs/picker/{begin}_{end}.log")
+        #logging.info(f"[{datetime.now()}] Running EQCCT picker {pos}. Log file: {log_file}")
 
-        output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
+        #output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
         
-        picks = self.predictor.mseed_predictor(stream = stream,
-                        output_dir    = output_eqcct,
+        picks = mseed_predictor(stream = stream,
+                        # output_dir    = output_eqcct,
                         stations2use  = stations,
-                        P_threshold   = self.eqcctPthr,
-                        S_threshold   = self.eqcctSthr,
-                        normalization_mode = 'std',
-                        overlap       = self.eqcctOverlap,
-                        batch_size    = self.eqcctBatchSize,
-                        overwrite     = True,
-                        log_file      = log_file,
+                        P_threshold   = params['P_threshold'],
+                        S_threshold   = params['S_threshold'],
+                        normalization_mode = params['normalization_mode'],
+                        overlap       = params['overlap'],
+                        batch_size    = params['batch_size'],
+                        overwrite     = params['overwrite'],
+                        # log_file      = log_file,
                         # model         = model,
-                        p_model       = self.eqcct_Pmodel,
-                        s_model       = self.eqcct_Smodel,
-                        numCPUs       = self.numCPUs,
-                        gpu_id        = self.gpuID,
-                        gpu_limit     = self.gpuLimit,
-                        maxStsTasksQueue = self.maxStsTasksQueue)
-        self.scPhase(picks)
-
+                        p_model       = params['p_model'],
+                        s_model       = params['s_model'],
+                        numCPUs       = params['numCPUs'],
+                        gpu_id        = params['gpu_id'],
+                        gpu_limit     = params['gpu_limit'],
+                        maxStsTasksQueue = params['maxStsTasksQueue'])
+        
+        return picks
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
 
     def scPhase(self,picks):
@@ -611,8 +701,15 @@ class sceqcct(StreamApplication):
         scPtime.set(Ptime.year,Ptime.month,Ptime.day,Ptime.hour,Ptime.minute,Ptime.second,Ptime.microsecond)
         timeQ = TimeQuantity()
         timeQ.setValue(scPtime)
-        timeQ.setUncertainty(float(pickData[strProp]))
+        # timeQ.setUncertainty(float(pickData[strProp]))
         pick.setTime(timeQ)
+        comm = Comment()
+        comm.setId('eqcctProb')
+        comm.setText(str(pickData[strProp]))
+        ci = CreationInfo()
+        ci.setCreationTime(Time().GMT())
+        comm.setCreationInfo(ci)
+        pick.add(comm)
         # print(pick.time().value())
         # print(pick.time().uncertainty())
         wfID = WaveformStreamID()
@@ -626,15 +723,13 @@ class sceqcct(StreamApplication):
         pick.setPhaseHint(phase)
         pick.setMethodID('EQCCT')
         pick.setEvaluationMode(1)
-
-        ci = CreationInfo()
-        ci.setCreationTime(Time().GMT())
         pick.setCreationInfo(ci)
 
         logging.debug("Pick produced by EQCCT %s.%s" % (pick.waveformID().networkCode(), pick.waveformID().stationCode()))
         logging.debug('%s' % pick)
             
         self.sendPick(pick)
+        self.sendComt(comm, pick)
 
         # pickRef = PickReference()
         if phaseHint == 'S':
@@ -696,9 +791,9 @@ class sceqcct(StreamApplication):
     def changeOrigStatus(self, origin, EvalStat):
         try:
             origin.setEvaluationStatus(EvalStat)
-            logging.debug("Changing origin %s evaluation status %s" % (origin.publicID(),origin.setEvaluationStatus()))
-        except:
-            logging.error("Error changing origin evaluation status %s" % origin.publicID())
+            logging.debug("Changing origin %s evaluation status %s" % (origin.publicID(),EvalStat))
+        except Exception as e:
+            logging.error("Error changing origin evaluation status {} with error {}".format(origin.publicID(),e))
         return origin
 
     def qualityCheckOrigin(self, origin):
@@ -827,9 +922,15 @@ class sceqcct(StreamApplication):
             self.handleOrigin(origin, op=OP_UPDATE)
 
     def handleClose(self):
+        self.tasks_ids_end.set()
+        self.monitorThread.join()
+        logging.info(f'The main process has completed all tasks.')
         ray.shutdown()
 
     def handleAutoShutdown(self):
+        self.tasks_ids_end.set()
+        self.monitorThread.join()
+        logging.info(f'The main process has completed all tasks.')
         ray.shutdown()
 
     def run(self):
