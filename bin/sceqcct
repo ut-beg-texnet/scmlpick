@@ -228,7 +228,7 @@ class sceqcct(StreamApplication):
             for sta in self.stations:
                 staCheck = False
                 if '*' in sta:
-                    if (streamID[0] == sta.split('.')[0] and fnmatch.fnmatch(streamID[1], sta)):
+                    if (streamID[0] == sta.split('.')[0] and fnmatch.fnmatch(streamID[1], sta.split('.')[1])):
                         staCheck = True
                 else:
                     if (streamID[0] == sta.split('.')[0] and streamID[1] == sta.split('.')[1]):
