@@ -7,7 +7,7 @@ Author of the Software: Camilo Munoz
 """
 
 import logging as stdlogging
-import sys, os, ray, time, threading
+import sys, os, ray, time, threading, traceback
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -379,6 +379,8 @@ class sceqcct(StreamApplication):
         for i, trace in enumerate(self.stream):
             logging.info(f'{trace}')
 
+        timeMarks = [self.startTime.second,(self.startTime + self.timeShift).second]
+
         # print(tr)
         if len(self.stream) == 0:
             self.stream.append(tr)
@@ -402,6 +404,23 @@ class sceqcct(StreamApplication):
                         else:
                             # print(self.stream[i].stats.endtime)
                             return
+                    else:
+                        if self.stream[i].stats.starttime.second not in timeMarks:
+                            logging.info(f"Start time not in timeMarks: {self.stream[i].stats.starttime} not in {timeMarks}")
+                            logging.info(f"Trace {self.stream[i]}")
+                            diff1 = abs(self.stream[i].stats.starttime.second - timeMarks[0])
+                            diff2 = abs(self.stream[i].stats.starttime.second - timeMarks[1])
+                            closestSec = timeMarks[0] if diff1 < diff2 else timeMarks[1]
+                            newTime = UTCDateTime(
+                                year=self.stream[i].stats.starttime.year,
+                                month=self.stream[i].stats.starttime.month,
+                                day=self.stream[i].stats.starttime.day,
+                                hour=self.stream[i].stats.starttime.hour,
+                                minute=self.stream[i].stats.starttime.minute,
+                                second=closestSec
+                            )
+                            self.stream[i].trim(newTime, UTCDateTime(end_time), pad=True, fill_value=0)
+                            logging.info(f"Trimmed using closest allowed timestamp {newTime}")
                     # print(self.stream[i].stats.endtime - self.stream[i].stats.starttime)
                     if self.stream[i].stats.endtime - self.stream[i].stats.starttime >= self.windowLength:
                         traceID = f'{net}.{sta}.{loc}.{chan}'
@@ -599,17 +618,25 @@ class sceqcct(StreamApplication):
         
         while tasks_ids or not self.tasks_ids_end.is_set():
             # We check the completed results without blocking
-            if tasks_ids:
-                results_ready, tasks_ids[:] = ray.wait(tasks_ids, num_returns=len(tasks_ids), timeout=1)
-            
-                # We process the results that are ready
-                for result_id in results_ready:
-                    result = ray.get(result_id)
-                    logging.info(f"Result received on the monitor: {result}")
-                    self.scPhase(result)
-                    results.append(result)
-            time.sleep(1)  # Short pause to avoid excessive CPU usage
-            logging.info(f"Pending tasks on the monitor: {len(tasks_ids)}")
+            try:
+                if tasks_ids:
+                    results_ready, tasks_ids[:] = ray.wait(tasks_ids, num_returns=len(tasks_ids), timeout=1)
+                
+                    # We process the results that are ready
+                    for result_id in results_ready:
+                        try:
+                            result = ray.get(result_id)
+                            logging.info(f"Result received on the monitor: {result}")
+                            self.scPhase(result)
+                            results.append(result)
+                        except Exception as task_error:
+                            logging.error("Error while processing task {}".format(task_error))
+                            logging.error(traceback.format_exc())
+                time.sleep(1)  # Short pause to avoid excessive CPU usage
+                logging.info(f"Pending tasks on the monitor: {len(tasks_ids)}")
+            except Exception as e:
+                logging.error("Task Monitor Error {}".format(e))
+                logging.error(traceback.format_exc())
 
         logging.info(f"The monitor has processed all the results.")
         return results
