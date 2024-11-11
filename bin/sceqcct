@@ -22,6 +22,7 @@ from multiprocessing import Pool
 share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
 sys.path.append(share_path)
 from predictor import mseed_predictor
+import fnmatch
 
 # import main_picks as picks2xml
 
@@ -225,13 +226,20 @@ class sceqcct(StreamApplication):
         streamIDs = self.currentStreams()
         for streamID in streamIDs:
             for sta in self.stations:
-                if (streamID[0] == sta.split('.')[0] and streamID[1] == sta.split('.')[1]):
-                    if streamID[1] in self.stasDict:
-                        self.stasDict[streamID[1]].append(streamID[3])
-                    else:
-                        self.stasDict[streamID[1]] = [streamID[3]]
-                    self.initStreams.append(streamID)
-                    self.recordStream().addStream(*streamID)
+                staCheck = False
+                if '*' in sta:
+                    if (streamID[0] == sta.split('.')[0] and fnmatch.fnmatch(streamID[1], sta)):
+                        staCheck = True
+                else:
+                    if (streamID[0] == sta.split('.')[0] and streamID[1] == sta.split('.')[1]):
+                        staCheck = True
+                if staCheck:
+                        if streamID[1] in self.stasDict:
+                            self.stasDict[streamID[1]].append(streamID[3])
+                        else:
+                            self.stasDict[streamID[1]] = [streamID[3]]
+                        self.initStreams.append(streamID)
+                        self.recordStream().addStream(*streamID)
         return
 
     def configStreams(self):
