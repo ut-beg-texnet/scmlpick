@@ -383,13 +383,12 @@ class sceqcct(StreamApplication):
         }
         tr = Trace(data=data, header=header)
 
-        logging.info(f"STREAM INIT")
-        for i, trace in enumerate(self.stream):
-            logging.info(f'{trace}')
+        #logging.info(f"STREAM INIT")
+        #for i, trace in enumerate(self.stream):
+        #    logging.info(f'{trace}')
 
         timeMarks = [self.startTime.second,(self.startTime + self.timeShift).second]
 
-        # print(tr)
         if len(self.stream) == 0:
             self.stream.append(tr)
         else:
@@ -453,6 +452,7 @@ class sceqcct(StreamApplication):
         for i, trace in enumerate(self.streamPick):
             logging.info(f'{trace}')
 
+        # Adding stations with data for all channels avail. to staSend
         for sta in self.stasPick:
             checkSta = True
             for recChann in self.stasDict[sta]:
@@ -477,8 +477,8 @@ class sceqcct(StreamApplication):
         for i,trace in enumerate(self.streamPick):
             sta = self.streamPick[i].stats.station
             if sta in self.staSend and sta not in staSet:
-                delayEnd = UTCDateTime(Time.GMT()) - trace.stats.endtime
-                delayStart = UTCDateTime(Time.GMT()) - trace.stats.starttime
+                delayEnd = UTCDateTime(Time.GMT()) - trace.stats.endtime # Leave here but this time is different than the one use in oneMinuteStream (to evaluate).
+                delayStart = UTCDateTime(Time.GMT()) - trace.stats.starttime # Same than oneMinuteStream this is the correct time to count the delay.
                 if delayEnd >= self.firstWait or delayStart >= self.firstWait + self.windowLength:
                     staSet.add(sta)
         
@@ -491,7 +491,7 @@ class sceqcct(StreamApplication):
                 sendNow = True
 
         toRemove = []
-        if (len(self.staSend) >= self.minStasBulk and len(staSet) >= self.minStasBulk) or sendNow:
+        if (len(self.staSend) >= self.minStasBulk and len(staSet) >= self.minStasBulk and self.wait == False) or sendNow:
             if sendNow:
                 logging.info(f"Sending now due to second delay")
                 self.wait = False
