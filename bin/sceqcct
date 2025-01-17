@@ -527,7 +527,8 @@ class sceqcct(StreamApplication):
         sendNow = False
         if self.wait:
             delay = UTCDateTime(Time.GMT()) - self.sendTime
-
+            if delay >= self.maxWait:
+                self.wait = False
             elif delay >= self.secondWait and len(self.staSend) > 0:
                 sendNow = True
 
