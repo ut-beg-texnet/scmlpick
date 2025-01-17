@@ -104,6 +104,34 @@
                                         </description>
                                 </parameter>
                         </group>
+                        <group name="pipelines">
+                                <parameter name="profiles" type="list:String">
+                                        <description>
+                                        </description>
+                                </parameter>
+                                <group name="profiles">
+                                        <description>
+                                                Profiles including specific configurations.
+                                        </description>
+                                        <struct type="Pipeline profiles" link = "pipelines.profiles">
+                                                <parameter name="targetGroup" type="type=String" default="PICK">
+                                                        <description>
+                                                        This is the name of the group to send messages for specific profile
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="stations" type="list:String">
+                                                        <description>
+                                                        Define the list of stations that are allowed to process in this specific profile. Fotmat: NET.STA
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="filters" type="list:String">
+                                                        <description>
+                                                        Define the list of filters to apply to the list of stations in this specific profile. Numer of stations must be equal to the number of filters.
+                                                        </description>
+                                                </parameter>
+                                          </struct>
+                                </group>
+                        </group>
                         <group name="ray">
                                 <parameter name="numCPUs" type="int" default="5">
                                         <description>

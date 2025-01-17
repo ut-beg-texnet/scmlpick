@@ -52,6 +52,7 @@ class sceqcct(StreamApplication):
         self.wait = False
         # Shared list of task IDs
         self.tasks_ids = []
+        self.profiles = []
         # Control variable to stop monitoring when there are no more tasks
         self.tasks_ids_end = threading.Event()
 
@@ -140,6 +141,8 @@ class sceqcct(StreamApplication):
         except Exception as e:
             logging.info('gpuLimit could not be read : %s' % e)
 
+        self.profilesConfig()
+
         #RAY
         try:
             self.numCPUs = self.configGetInt('ray.numCPUs')
@@ -220,6 +223,45 @@ class sceqcct(StreamApplication):
         ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
         logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
         return True
+
+    def profilesConfig(self):
+        profiles = []
+		# try:
+        profiles = self.configGetStrings('pipelines.profiles')
+		# except:
+			# logging.error('Error loading profiles' )
+			# sys.exit(-1)
+        if len(profiles) != 0:
+            for profile in profiles:
+                profDic = {}
+                profDic['name'] = profile
+                try:
+                    profDic['targetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.targetGroup')
+                except:
+                    logging.warning('error when reading pipelines.profiles.'+profile+'.targetGroup')
+                    logging.warning('setting default targetGroup')
+                    profDic['targetGroup'] = ''
+                    pass
+
+                try:
+                    profDic['stations'] = self.configGetStrings('pipelines.profiles.'+profile+'.stations')
+                except:
+                    logging.warning('error when reading pipelines.profiles.'+profile+'.stations')
+                    logging.warning('setting stations = ""')
+                    profDic['stations'] = ''
+                    pass
+
+                try:
+                    profDic['filters'] = self.configGetStrings('pipelines.profiles.'+profile+'.filters')
+                except:
+                    logging.warning('error when reading pipelines.profiles.'+profile+'.filters')
+                    logging.warning('setting filters = ""')
+                    profDic['filters'] = ''
+                    pass
+                self.profiles.append(profDic)
+        else:
+            logging.warning('No profiles configured. Nothing to do')
+            pass
 
     def updateStreams(self):
         # streamIDs = self.configStreams()
@@ -485,8 +527,7 @@ class sceqcct(StreamApplication):
         sendNow = False
         if self.wait:
             delay = UTCDateTime(Time.GMT()) - self.sendTime
-            if delay >= self.maxWait:
-                self.wait == False
+
             elif delay >= self.secondWait and len(self.staSend) > 0:
                 sendNow = True
 
@@ -809,8 +850,23 @@ class sceqcct(StreamApplication):
             n = Notifier("EventParameters", op, pickObj)
             msg = NotifierMessage()
             msg.attach(n)
-            out = self.connection().send(msg)
-            logging.debug("Pick sent? %s" % "Yes" if out else "No, failed" )
+            logging.debug("PROFILES %s" % self.profiles)
+            for profile in self.profiles:
+                logging.debug("PROFILE %s" % profile)
+                logging.debug("wfID %s" % pickObj.waveformID())
+                logging.debug("net %s" % pickObj.waveformID().networkCode())
+                netSta = f"{pickObj.waveformID().networkCode()}.{pickObj.waveformID().stationCode()}"
+                if netSta in profile["stations"]:
+                    target = profile["targetGroup"]
+                    if target:
+                        logging.debug("Trying to send pick %s to %s" % (netSta,target))
+                        out = self.connection().send(target,msg)
+                        logging.debug("Pick sent? %s" % "Yes" if out else "No, failed" )
+                    else:
+                        logging.debug("Trying to send pick %s to default target" % (netSta))
+                        out = self.connection().send(msg)
+                        logging.debug("Pick sent? %s" % "Yes" if out else "No, failed" )
+
         # if pickRef:
         #     pickRefObj = PickReference.Cast(pickRef)
         #     Notifier.Enable()
@@ -819,7 +875,7 @@ class sceqcct(StreamApplication):
         #     msg2.attach(n2)
         #     out2 = self.connection().send(msg2)
         #     logging.debug("PickReference sent? %s" % "Yes" if out2 else "No, failed" )
-        return out
+        # return out
 
     def changeOrigStatus(self, origin, EvalStat):
         try:
