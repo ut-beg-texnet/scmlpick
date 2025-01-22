@@ -83,6 +83,10 @@ class sceqcct(StreamApplication):
         except Exception as e:
             logging.info('windowLength could not be read : %s' % e)
         try:
+            self.filterShift = self.configGetDouble('eqcct.filterShift')
+        except Exception as e:
+            logging.info('filterShift could not be read : %s' % e)       
+        try:
             self.probThreshold = self.configGetDouble('eqcct.probThreshold')
         except Exception as e:
             logging.info('probThreshold could not be read : %s' % e)
@@ -353,6 +357,7 @@ class sceqcct(StreamApplication):
     def handleRecord(self, rec):
 
         params = {
+            "filterShift" : self.filterShift,
             "share_path" : self.ei.shareDir(),
             "P_threshold": self.eqcctPthr,
             "S_threshold": self.eqcctSthr,
@@ -429,7 +434,10 @@ class sceqcct(StreamApplication):
         #for i, trace in enumerate(self.stream):
         #    logging.info(f'{trace}')
 
-        timeMarks = [self.startTime.second,(self.startTime + self.timeShift).second]
+        timeMark1 = self.startTime - self.filterShift
+        timeMark2 = self.startTime + self.timeShift - self.filterShift
+
+        timeMarks = [timeMark1,timeMark2]
 
         if len(self.stream) == 0:
             self.stream.append(tr)
@@ -449,30 +457,36 @@ class sceqcct(StreamApplication):
                         if self.stream[i].stats.endtime > self.startTime:
                             # print(self.startTime)
                             # print(UTCDateTime(end_time))
-                            self.stream[i].trim(self.startTime, UTCDateTime(end_time), pad=True, fill_value=0)
+                            self.stream[i].trim(self.startTime-self.filterShift, UTCDateTime(end_time), pad=True, fill_value=0)
                         else:
                             # print(self.stream[i].stats.endtime)
                             return
                     else:
-                        if self.stream[i].stats.starttime.second not in timeMarks:
+                        in_window1 = abs(self.stream[i].stats.starttime.second - timeMarks[0].second) < 0.5
+                        in_window2 = abs(self.stream[i].stats.starttime.second - timeMarks[1].second) < 0.5
+                        if not in_window1 and not in_window2:
                             logging.info(f"Start time not in timeMarks: {self.stream[i].stats.starttime} not in {timeMarks}")
                             logging.info(f"Trace {self.stream[i]}")
-                            newSec = timeMarks[0] if timeMarks[0] < self.stream[i].stats.starttime.second else timeMarks[1]
-                            newTime = UTCDateTime(
-                                year=self.stream[i].stats.starttime.year,
-                                month=self.stream[i].stats.starttime.month,
-                                day=self.stream[i].stats.starttime.day,
-                                hour=self.stream[i].stats.starttime.hour,
-                                minute=self.stream[i].stats.starttime.minute,
-                                second=newSec
-                            )
+                            newTime = self.stream[i].stats.starttime.replace(second=timeMarks[0].second) if timeMarks[0].second < self.stream[i].stats.starttime.second else (self.stream[i].stats.starttime - 60).replace(second=timeMarks[1].second)
+                        # if self.stream[i].stats.starttime.second not in timeMarks:
+                        #     logging.info(f"Start time not in timeMarks: {self.stream[i].stats.starttime} not in {timeMarks}")
+                        #     logging.info(f"Trace {self.stream[i]}")
+                        #     newSec = timeMarks[0] if timeMarks[0] < self.stream[i].stats.starttime.second else timeMarks[1]
+                        #     newTime = UTCDateTime(
+                        #         year=self.stream[i].stats.starttime.year,
+                        #         month=self.stream[i].stats.starttime.month,
+                        #         day=self.stream[i].stats.starttime.day,
+                        #         hour=self.stream[i].stats.starttime.hour,
+                        #         minute=self.stream[i].stats.starttime.minute,
+                        #         second=newSec
+                        #     )
                             try:
                                 self.stream[i].trim(newTime, UTCDateTime(end_time), pad=True, fill_value=0)
                                 logging.info(f"Trimmed using closest allowed timestamp {newTime}")
                             except Exception as e:
                                 logging.error("Error trimming trace {} with error {}".format(self.stream[i],e))
                     # print(self.stream[i].stats.endtime - self.stream[i].stats.starttime)
-                    if self.stream[i].stats.endtime - self.stream[i].stats.starttime >= self.windowLength:
+                    if self.stream[i].stats.endtime - self.stream[i].stats.starttime >= self.windowLength + self.filterShift:
                         traceID = f'{net}.{sta}.{loc}.{chan}'
                         # trace_found = any(tr.id == traceID for tr in self.streamPick)
                         index_found = next((j for j, tr in enumerate(self.streamPick) if tr.id == traceID), None)
@@ -548,7 +562,7 @@ class sceqcct(StreamApplication):
                     Nminutes = int(duration // self.windowLength)
                     if Nminutes > 0:
                         startMinute = self.streamPick[i].stats.starttime
-                        endMinute = self.streamPick[i].stats.starttime + (Nminutes*self.windowLength)
+                        endMinute = self.streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
                         traceMin = trace.slice(
                                             starttime=startMinute,
                                             endtime=endMinute
@@ -569,7 +583,7 @@ class sceqcct(StreamApplication):
                         # print(self.stream[i].stats.endtime)
                         try:
                             self.stream[i] = trace.slice(
-                                starttime=tr.stats.endtime - self.timeShift,
+                                starttime=tr.stats.endtime - self.timeShift - self.filterShift,
                                 endtime=self.stream[i].stats.endtime,
                                 )
                             # self.stream[i] = trace.slice(
@@ -739,6 +753,7 @@ class sceqcct(StreamApplication):
         #output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
         
         picks = mseed_predictor(stream = stream,
+                        filterShift    = params['filterShift'],
                         # output_dir    = output_eqcct,
                         stations2use  = stations,
                         P_threshold   = params['P_threshold'],

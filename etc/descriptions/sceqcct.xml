@@ -31,6 +31,11 @@
                                             Define the data window length in seconds to send to eqcct.
                                         </description>
                                 </parameter>
+                                <parameter name="filterShift" type="double" default="2.5">
+                                        <description>
+                                            Define the time shift to initialize the filter. This data will not be processed, so timeShift must be greater than this. (in seconds)
+                                        </description>
+                                </parameter>
                                 <parameter name="probThreshold" type="double" default="0.001">
                                         <description>
                                             Minimum probability to reach to send a new pick.

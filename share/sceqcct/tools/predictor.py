@@ -498,6 +498,7 @@ def load_eqcct_model(input_modelP, input_modelS):
     return model
         
 def mseed_predictor(stream=None,
+              filterShift=2.5,
             #   output_dir="detections",
               stations2use=None,
               P_threshold=0.1,
@@ -564,6 +565,7 @@ def mseed_predictor(stream=None,
  
     args = {
     # "output_dir": output_dir,
+    "filterShift": filterShift,
     "P_threshold": P_threshold,
     "S_threshold": S_threshold,
     "normalization_mode": normalization_mode,
@@ -723,7 +725,7 @@ def parallel_predict(predict_args):
 def _readnparray(stream, args, time_slots, comp_types, st_name):
     'Read data from record stream and returns 3 dictionaries of numpy arrays, meta data, and time slice info'
 
-    output_wf = f"/home/cam/EQCCT/sceqcct/eqcct-dev/results/waveform"
+    output_wf = f"/home/cam/EQCCT/sceqcct/eqcct-dev/share/sceqcct/results/waveform"
     # print('st_name')
     # print(st_name)
 
@@ -747,18 +749,22 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     # else:
     #     return
    
-    for tr in st:
-        start_time = tr.stats.starttime
-        end_time = tr.stats.endtime
-        # print(tr)
-        # print(f'Start time {start_time}')
-        # print(f'End time {end_time}')
+    # for tr in st:
+    #     start_time = tr.stats.starttime
+    #     end_time = tr.stats.endtime
+    #     # print(tr)
+    #     # print(f'Start time {start_time}')
+    #     # print(f'End time {end_time}')
 
-    start_time = st[0].stats.starttime
-    end_time = st[0].stats.endtime
+
+    print('Stream before Filter')
+    print(st)
+
+    start_time = min([tr.stats.starttime for tr in st])
+    end_time = max([tr.stats.endtime for tr in st])
     staName = st[0].stats.station
 
-    # st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
+    st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
 
     st.taper(max_percentage=0.05, type='cosine')
     st.trim(min([tr.stats.starttime for tr in st])-10, max([tr.stats.endtime for tr in st])+10, pad=True, fill_value=0)
@@ -774,7 +780,9 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     
     st.trim(min([tr.stats.starttime for tr in st]), max([tr.stats.endtime for tr in st]), pad=True, fill_value=0)
 
-    # st.write(f"{output_wf}/after/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
+    st.write(f"{output_wf}/after/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
+
+    start_time = min([tr.stats.starttime for tr in st])+args['filterShift']
 
     meta = {"start_time":start_time,
             "end_time":end_time,
@@ -798,8 +806,10 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     npz_data = np.zeros([tr_size, 3]) 
     st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
 
-    # w = st.slice(start_time, next_slice)
-    w = st
+    w = st.slice(start_time, end_time)
+    print('Stream send to EQCCT')
+    print(w)
+    # w = st
     # print(w)
     # print(chanL)
     if 'Z' in chanL:
