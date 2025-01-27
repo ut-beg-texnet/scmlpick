@@ -53,6 +53,12 @@
                                             At least this number of real-time stations must be available to produce picks.
                                         </description>
                                 </parameter>
+                                <parameter name="minDelayStasBulk" type="int" default="5">
+                                        <description>
+                                            Minimum number of delayed stations with windowLength data available to send to EQCCT after firstWait.
+                                            This number should be less than the total stations.
+                                        </description>
+                                </parameter>
                                 <parameter name="firstWait" type="int" default="5">
                                         <description>
                                             Minimum delay between now and the end time of the last minute saved in memory to compute all data available. First computation.
@@ -76,6 +82,11 @@
                                 <parameter name="timeRemoveTrace" type="int" default="600">
                                         <description>
                                             Maximum time in seconds to wait before remove traces from the processing stream.
+                                        </description>
+                                </parameter>
+                                <parameter name="traceDelay" type="int" default="120">
+                                        <description>
+                                            Minimum delay in seconds between the current time and the start time of data acquired to send data to delayed data processing.
                                         </description>
                                 </parameter>
                                 <parameter name="eqcctPthr" type="double" default="0.001">

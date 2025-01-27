@@ -45,10 +45,14 @@ class sceqcct(StreamApplication):
         self.streams = []
         self.stream = Stream()
         self.streamPick = Stream()
+        self.delayStream = Stream()
         self.oneMinuteStream = Stream()
+        self.oneMinuteStDelay = Stream()
         self.stasDict = {}
         self.stasPick = set()
+        self.delayStasPick = set()
         self.staSend = []
+        self.delayStaSend = []
         self.wait = False
         # Shared list of task IDs
         self.tasks_ids = []
@@ -85,7 +89,7 @@ class sceqcct(StreamApplication):
         try:
             self.filterShift = self.configGetDouble('eqcct.filterShift')
         except Exception as e:
-            logging.info('filterShift could not be read : %s' % e)       
+            logging.info('filterShift could not be read : %s' % e)  
         try:
             self.probThreshold = self.configGetDouble('eqcct.probThreshold')
         except Exception as e:
@@ -98,6 +102,10 @@ class sceqcct(StreamApplication):
             self.minStasBulk = self.configGetInt('eqcct.minStasBulk')
         except Exception as e:
             logging.info('minStasBulk could not be read : %s' % e)
+        try:
+            self.minDelayStasBulk = self.configGetInt('eqcct.minDelayStasBulk')
+        except Exception as e:
+            logging.info('minDelayStasBulk could not be read : %s' % e)
         try:
             self.firstWait = self.configGetInt('eqcct.firstWait')
         except Exception as e:
@@ -118,6 +126,12 @@ class sceqcct(StreamApplication):
             self.timeRemoveTrace = self.configGetInt('eqcct.timeRemoveTrace')
         except Exception as e:
             logging.info('timeRemoveTrace could not be read : %s' % e)
+        try:
+            self.traceDelay = self.configGetInt('eqcct.traceDelay')
+        except Exception as e:
+            logging.info('traceDelay could not be read : %s' % e)
+
+
 
         #EQCCT
         try:
@@ -488,13 +502,21 @@ class sceqcct(StreamApplication):
                     # print(self.stream[i].stats.endtime - self.stream[i].stats.starttime)
                     if self.stream[i].stats.endtime - self.stream[i].stats.starttime >= self.windowLength + self.filterShift:
                         traceID = f'{net}.{sta}.{loc}.{chan}'
-                        # trace_found = any(tr.id == traceID for tr in self.streamPick)
                         index_found = next((j for j, tr in enumerate(self.streamPick) if tr.id == traceID), None)
                         if index_found is None:
-                            self.streamPick.append(self.stream[i])
-                            self.stasPick.add(self.stream[i].stats.station)
+                            trDelay = UTCDateTime(Time.GMT()) - self.stream[i].stats.starttime
+                            if trDelay > self.traceDelay:
+                                index2_found = next((k for k, tr2 in enumerate(self.delayStream) if tr2.id == traceID), None)
+                                if index2_found is None:
+                                    self.delayStream.append(self.stream[i])
+                                    self.delayStasPick.add(self.stream[i].stats.station)
+                                else:
+                                    self.delayStream[index2_found] = self.stream[i]
+                            else:
+                                self.streamPick.append(self.stream[i])
+                                self.stasPick.add(self.stream[i].stats.station)   
                         else:
-                            self.streamPick[index_found] = self.stream[i]
+                                self.streamPick[index_found] = self.stream[i]
             if not inSt:
                     self.stream.append(tr)
                     # return
@@ -504,29 +526,23 @@ class sceqcct(StreamApplication):
             if lenght > self.timeRemoveTrace:
                 self.stream.remove(trace)     
         
-        logging.info(f"STREAM PICK")
-        for i, trace in enumerate(self.streamPick):
-            logging.info(f'{trace}')
+        self.checkCommonChan()
+
+        if len(self.streamPick) != 0:
+            logging.info(f"STREAM PICK")
+            for i, trace in enumerate(self.streamPick):
+                logging.info(f'{trace}')
+
+        if len(self.delayStream) != 0:
+            logging.info(f"DELAY STREAM PICK")
+            for i, trace in enumerate(self.delayStream):
+                logging.info(f'{trace}')
+
+        # Adding delayed stations with data for all channels avail. to delayStaSend
+        self.checkChann(self.delayStasPick, self.delayStream, 'delayed')
 
         # Adding stations with data for all channels avail. to staSend
-        for sta in self.stasPick:
-            checkSta = True
-            for recChann in self.stasDict[sta]:
-                checkChann = False
-                for i,trace in enumerate(self.streamPick):
-                    if trace.stats.station == sta:
-                        if recChann == trace.stats.channel:
-                            # print('streamPick')
-                            # print(trace.stats.channel)
-                            checkChann = True
-                if not checkChann:
-                    checkSta = False
-            if checkSta and sta not in self.staSend:
-                # print('checkSta')
-                # print(sta)
-                self.staSend.append(sta)
-
-        [self.stasPick.remove(sta) for sta in self.staSend if sta in self.stasPick]
+        self.checkChann(self.stasPick, self.streamPick, 'realTime')
 
         # Check delay for stations in memory
         staSet = set()
@@ -546,7 +562,6 @@ class sceqcct(StreamApplication):
             elif delay >= self.secondWait and len(self.staSend) > 0:
                 sendNow = True
 
-        toRemove = []
         if (len(self.staSend) >= self.minStasBulk and len(staSet) >= self.minStasBulk and self.wait == False) or sendNow:
             if sendNow:
                 logging.info(f"Sending now due to second delay")
@@ -555,65 +570,102 @@ class sceqcct(StreamApplication):
                 logging.info(f"Sending now due to first delay")
                 self.sendTime = UTCDateTime(Time.GMT())
                 self.wait = True
-            # Process the one-minute stream
-            for i,trace in enumerate(self.streamPick):
-                if self.streamPick[i].stats.station in self.staSend:
-                    duration = self.streamPick[i].stats.endtime - self.streamPick[i].stats.starttime
-                    Nminutes = int(duration // self.windowLength)
-                    if Nminutes > 0:
-                        startMinute = self.streamPick[i].stats.starttime
-                        endMinute = self.streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                        traceMin = trace.slice(
-                                            starttime=startMinute,
-                                            endtime=endMinute
-                                            )
-                        self.oneMinuteStream.append(traceMin)
-                        toRemove.append(i)
-                    else:
-                        logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{self.streamPick[i]}")
-                        continue
+            self.minuteStream('realTime',params)
+        
+        if len(self.delayStaSend) >= self.minDelayStasBulk:
+            logging.info(f"Sending now delayed stations")
+            self.minuteStream('delayed',params)
+
+    def checkCommonChan(self):
+        stations_in_S1 = {trace.stats.station for trace in self.streamPick}
+        traces_to_move = []
+        for idx, trace in enumerate(self.delayStream):
+            if trace.stats.station in stations_in_S1:
+                traces_to_move.append((idx, trace))
+
+        for idx, trace in reversed(traces_to_move): 
+            self.streamPick.append(trace)
+            del self.delayStream[idx]
+
+    def minuteStream(self,tpe,params):
+        toRemove = []
+        sta_send_map = {
+            'realTime': (self.streamPick, self.staSend, self.oneMinuteStream),
+            'delayed': (self.delayStream, self.delayStaSend, self.oneMinuteStDelay)
+        } 
+        streamPick, staSend, oneMinuteStream = sta_send_map[tpe]
+
+        # Process the one-minute stream
+        for i,trace in enumerate(streamPick):
+            if streamPick[i].stats.station in staSend:
+                duration = streamPick[i].stats.endtime - streamPick[i].stats.starttime
+                Nminutes = int(duration // self.windowLength)
+                if Nminutes > 0:
+                    startMinute = streamPick[i].stats.starttime
+                    endMinute = streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
+                    traceMin = trace.slice(
+                                        starttime=startMinute,
+                                        endtime=endMinute
+                                        )
+                    oneMinuteStream.append(traceMin)
+                    toRemove.append(i)
+                else:
+                    logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{streamPick[i]}")
+                    continue
+
+        for i in sorted(toRemove, reverse=True): del streamPick[i]
+
+        for i,trace in enumerate(self.stream):
+            for tr in oneMinuteStream:
+                if trace.stats.network == tr.stats.network and trace.stats.station == tr.stats.station and trace.stats.channel == tr.stats.channel:
+                    try:
+                        self.stream[i] = trace.slice(
+                            starttime=tr.stats.endtime - self.timeShift - self.filterShift,
+                            endtime=self.stream[i].stats.endtime,
+                            )
+                    except:
+                        logging.error(f"Error when slice the trace %s" % self.stream[i])
             
-            for i in sorted(toRemove, reverse=True): del self.streamPick[i]
-
-            for i,trace in enumerate(self.stream):
-                for tr in self.oneMinuteStream:
-                    if trace.stats.network == tr.stats.network and trace.stats.station == tr.stats.station and trace.stats.channel == tr.stats.channel:
-                        # print(self.stream[i])
-                        # print(self.stream[i].stats.starttime)
-                        # print(self.stream[i].stats.endtime)
-                        try:
-                            self.stream[i] = trace.slice(
-                                starttime=tr.stats.endtime - self.timeShift - self.filterShift,
-                                endtime=self.stream[i].stats.endtime,
-                                )
-                            # self.stream[i] = trace.slice(
-                            #     # starttime=self.stream[i].stats.starttime + self.windowLength,
-                            #     starttime=self.stream[i].stats.starttime + self.windowLength - self.timeShift,
-                            #     endtime=self.stream[i].stats.endtime,
-                            #     )
-                        except:
-                            logging.error(f"Error when slice the trace %s" % self.stream[i])
-                        # print(self.stream[i])
+        logging.info(f"ONE MINUTE STREAM")
+        for i, trace in enumerate(oneMinuteStream):
+            logging.info(f'{trace}')
             
-            logging.info(f"ONE MINUTE STREAM")
-            for i, trace in enumerate(self.oneMinuteStream):
-                logging.info(f'{trace}')
-            
-            # Run EQCCT picker
-            # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-            self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-            logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStream} assigned.")
-            logging.info(f"The main process continues to generate and launch tasks.")
+        # Run EQCCT picker
+        # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
+        self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,oneMinuteStream,params))
+        logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStream} assigned.")
+        logging.info(f"The main process continues to generate and launch tasks.")
 
-            # resultados = ray.get(self.tasks_ids)
-            # print("Resultados de las tareas secundarias:", resultados)
+        # resultados = ray.get(self.tasks_ids)
+        # print("Resultados de las tareas secundarias:", resultados)
 
-            # self.sendTask(startMinute,endMinute,self.oneMinuteStream)
-            # self.run_picker()
+        # self.sendTask(startMinute,endMinute,self.oneMinuteStream)
+        # self.run_picker()
 
-            self.oneMinuteStream = Stream()
-            self.staSend = []
+        oneMinuteStream.clear()
+        staSend.clear() 
 
+    def checkChann(self, stas, stream, tpe):
+        sta_send_map = {
+            'delayed': (self.delayStaSend, self.delayStasPick),
+            'realTime': (self.staSend, self.stasPick)
+        }
+    
+        sta_send, stas_pick = sta_send_map[tpe]
+        for sta in stas:
+            checkSta = True
+            for recChann in self.stasDict[sta]:
+                checkChann = any(
+                    trace.stats.station == sta and recChann == trace.stats.channel
+                    for trace in stream
+                )
+                if not checkChann:
+                    checkSta = False
+                    break 
+            if checkSta and sta not in sta_send:
+                sta_send.append(sta)
+                stas_pick = {s for s in stas_pick if s not in sta_send}
+    
     @staticmethod
     @ray.remote
     def run_picker(start_time,end_time,stream,params):

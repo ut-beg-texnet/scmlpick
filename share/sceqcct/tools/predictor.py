@@ -725,7 +725,7 @@ def parallel_predict(predict_args):
 def _readnparray(stream, args, time_slots, comp_types, st_name):
     'Read data from record stream and returns 3 dictionaries of numpy arrays, meta data, and time slice info'
 
-    output_wf = f"/home/cam/EQCCT/sceqcct/eqcct-dev/share/sceqcct/results/waveform"
+    #output_wf = f""
     # print('st_name')
     # print(st_name)
 
@@ -757,21 +757,21 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     #     # print(f'End time {end_time}')
 
 
-    print('Stream before Filter')
-    print(st)
+    # print('Stream before Filter')
+    # print(st)
 
     start_time = min([tr.stats.starttime for tr in st])
     end_time = max([tr.stats.endtime for tr in st])
-    staName = st[0].stats.station
+    # staName = st[0].stats.station
 
-    st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
+    # st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
 
-    st.taper(max_percentage=0.05, type='cosine')
-    st.trim(min([tr.stats.starttime for tr in st])-10, max([tr.stats.endtime for tr in st])+10, pad=True, fill_value=0)
+    st.taper(max_percentage=0.05, type='cosine', max_length=1)
+    # st.trim(min([tr.stats.starttime for tr in st])-10, max([tr.stats.endtime for tr in st])+10, pad=True, fill_value=0)
     st.filter(type='bandpass', freqmin = 1.0, freqmax = 45, corners=2, zerophase=True)
-    st.trim(min([tr.stats.starttime for tr in st])+10, max([tr.stats.endtime for tr in st])-10)
-    
-    st.taper(max_percentage=0.001, type='cosine', max_length=2)
+    # st.trim(min([tr.stats.starttime for tr in st])+10, max([tr.stats.endtime for tr in st])-10)  
+    st.taper(max_percentage=0.05, type='cosine', max_length=1)
+
     if len([tr for tr in st if tr.stats.sampling_rate != 100.0]) != 0:
         try:
             st.interpolate(100, method="linear")
@@ -780,14 +780,21 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     
     st.trim(min([tr.stats.starttime for tr in st]), max([tr.stats.endtime for tr in st]), pad=True, fill_value=0)
 
-    st.write(f"{output_wf}/after/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
+    # st.write(f"{output_wf}/after/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
 
     start_time = min([tr.stats.starttime for tr in st])+args['filterShift']
 
+    st_Z = st.select(channel="*Z")
+    if len(st_Z) > 0:
+        for tr in st_Z:
+            channelOut = tr.stats.channel
+    else:
+        channelOut = st[0].stats.channel
+    
     meta = {"start_time":start_time,
             "end_time":end_time,
             # "trace_name":f"{f.split('/')[-2]}/{f.split('/')[-1]}"
-            "trace_name":f"{st_name}.{st[0].stats.location}.{st[0].stats.channel}"
+            "trace_name":f"{st_name}.{st[0].stats.location}.{channelOut}"
              } 
     
     chanL = [tr.stats.channel[-1] for tr in st]
@@ -807,8 +814,8 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
 
     w = st.slice(start_time, end_time)
-    print('Stream send to EQCCT')
-    print(w)
+    # print('Stream send to EQCCT')
+    # print(w)
     # w = st
     # print(w)
     # print(chanL)
