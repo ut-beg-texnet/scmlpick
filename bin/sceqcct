@@ -695,7 +695,6 @@ class sceqcct(StreamApplication):
         self.oneMinuteStream = Stream()
         self.staSend = []
 
-
     # def minuteStream(self,tpe,params):
     #     toRemove = []
     #     sta_send_map = {
@@ -761,7 +760,7 @@ class sceqcct(StreamApplication):
             for recChann in self.stasDict[sta]:
                 checkChann = any(
                     trace.stats.station == sta and recChann == trace.stats.channel
-                    for trace in self.stasPick
+                    for trace in self.streamPick
                 )
                 if not checkChann:
                     checkSta = False
