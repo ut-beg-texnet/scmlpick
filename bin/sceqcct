@@ -410,10 +410,6 @@ class sceqcct(StreamApplication):
             "gpu_limit": self.gpuLimit,
             "maxStsTasksQueue": self.maxStsTasksQueue,
             }
-        try:
-            params["df_filters"] = pd.read_csv(params["filtersFile"], header=None, names=["sta", "hp", "lp"])
-        except:
-            params["df_filters"] = None
 
         # diftime = diftime.seconds()
         # streamid = "%s.%s.%s.%s"%tuple(rec.streamID().split('.'))
@@ -451,6 +447,14 @@ class sceqcct(StreamApplication):
         # time_range = pd.date_range(start=start_time, end=end_time, freq=freq, inclusive='left')
         # time_array = np.array(time_range)
         # time_array_utc = [UTCDateTime(t) for t in time_array]
+
+        for profile in self.profiles:
+            if net_sta in profile["stations"]:
+                try:
+                    params["df_filters"] = pd.read_csv(profile["filtersFile"], header=None, names=["sta", "hp", "lp"])
+                except:
+                    params["df_filters"] = None
+
         if rec.data():
             # print(rec.data().size())
             # print(len(time_array))
@@ -722,65 +726,6 @@ class sceqcct(StreamApplication):
         self.oneMinuteStream = Stream()
         self.staSend = []
 
-    # def minuteStream(self,tpe,params):
-    #     toRemove = []
-    #     sta_send_map = {
-    #         'realTime': (self.streamPick, self.staSend, self.oneMinuteStream),
-    #         'delayed': (self.delayStream, self.delayStaSend, self.oneMinuteStDelay)
-    #     } 
-    #     streamPick, staSend, oneMinuteStream = sta_send_map[tpe]
-
-    #     # Process the one-minute stream
-    #     for i,trace in enumerate(streamPick):
-    #         if streamPick[i].stats.station in staSend:
-    #             duration = streamPick[i].stats.endtime - streamPick[i].stats.starttime
-    #             Nminutes = int(duration // self.windowLength)
-    #             if Nminutes > 0:
-    #                 startMinute = streamPick[i].stats.starttime
-    #                 endMinute = streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-    #                 traceMin = trace.slice(
-    #                                     starttime=startMinute,
-    #                                     endtime=endMinute
-    #                                     )
-    #                 oneMinuteStream.append(traceMin)
-    #                 toRemove.append(i)
-    #             else:
-    #                 logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{streamPick[i]}")
-    #                 continue
-
-    #     for i in sorted(toRemove, reverse=True): del streamPick[i]
-
-    #     for i,trace in enumerate(self.stream):
-    #         for tr in oneMinuteStream:
-    #             if trace.stats.network == tr.stats.network and trace.stats.station == tr.stats.station and trace.stats.channel == tr.stats.channel:
-    #                 try:
-    #                     self.stream[i] = trace.slice(
-    #                         starttime=tr.stats.endtime - self.timeShift - self.filterShift,
-    #                         endtime=self.stream[i].stats.endtime,
-    #                         )
-    #                 except:
-    #                     logging.error(f"Error when slice the trace %s" % self.stream[i])
-            
-    #     logging.info(f"ONE MINUTE STREAM")
-    #     for i, trace in enumerate(oneMinuteStream):
-    #         logging.info(f'{trace}')
-            
-    #     # Run EQCCT picker
-    #     # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-    #     self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,oneMinuteStream,params))
-    #     logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStream} assigned.")
-    #     logging.info(f"The main process continues to generate and launch tasks.")
-
-    #     # resultados = ray.get(self.tasks_ids)
-    #     # print("Resultados de las tareas secundarias:", resultados)
-
-    #     # self.sendTask(startMinute,endMinute,self.oneMinuteStream)
-    #     # self.run_picker()
-
-    #     oneMinuteStream.clear()
-    #     staSend.clear() 
-
-
     def checkChann(self):   
         for sta in self.stasPick:
             checkSta = True
@@ -810,27 +755,6 @@ class sceqcct(StreamApplication):
             if checkSta and sta not in self.delayStaSend:
                 self.delayStaSend.append(sta)
                 self.delayStasPick = {s for s in self.delayStasPick if s not in self.delayStaSend}
-
-    # def checkChann(self, stas, stream, tpe):
-    #     sta_send_map = {
-    #         'delayed': (self.delayStaSend, self.delayStasPick),
-    #         'realTime': (self.staSend, self.stasPick)
-    #     }
-    
-    #     sta_send, stas_pick = sta_send_map[tpe]
-    #     for sta in stas:
-    #         checkSta = True
-    #         for recChann in self.stasDict[sta]:
-    #             checkChann = any(
-    #                 trace.stats.station == sta and recChann == trace.stats.channel
-    #                 for trace in stream
-    #             )
-    #             if not checkChann:
-    #                 checkSta = False
-    #                 break 
-    #         if checkSta and sta not in sta_send:
-    #             sta_send.append(sta)
-    #             stas_pick = {s for s in stas_pick if s not in sta_send}
     
     @staticmethod
     @ray.remote
@@ -1019,6 +943,20 @@ class sceqcct(StreamApplication):
         ci.setCreationTime(Time().GMT())
         comm.setCreationInfo(ci)
         pick.add(comm)
+        net_sta = f"{pickData['trace_name'].split('.')[0]}.{pickData['trace_name'].split('.')[1]}"
+        staName = pickData['trace_name'].split('.')[1]
+        freqmin = 1.0
+        freqmax = 45.0
+        filterID = f"BW(2,{freqmin},{freqmax})"
+        for profile in self.profiles:
+            if net_sta in profile["stations"]:
+                try:
+                    filters = pd.read_csv(profile["filtersFile"], header=None, names=["sta", "hp", "lp"])
+                    freqmin = filters[filters.sta == staName].iloc[0]["hp"]
+                    freqmax = filters[filters.sta == staName].iloc[0]["lp"]
+                    filterID = f"BW(2,{freqmin},{freqmax})"
+                except:
+                    pass
         # print(pick.time().value())
         # print(pick.time().uncertainty())
         wfID = WaveformStreamID()
@@ -1033,6 +971,8 @@ class sceqcct(StreamApplication):
         pick.setMethodID('EQCCT')
         pick.setEvaluationMode(1)
         pick.setCreationInfo(ci)
+        filterAndProp = "  ".join([f"prop:  {strProp}", f"filt: {filterID}"])
+        pick.setFilterID(filterAndProp)
 
         logging.debug("Pick produced by EQCCT %s.%s" % (pick.waveformID().networkCode(), pick.waveformID().stationCode()))
         logging.debug('%s' % pick)
