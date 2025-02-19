@@ -130,9 +130,19 @@
                                                 Profiles including specific configurations.
                                         </description>
                                         <struct type="Pipeline profiles" link = "pipelines.profiles">
-                                                <parameter name="targetGroup" type="type=String" default="PICK">
+                                                <parameter name="pickTargetGroup" type="String" default="PICK">
                                                         <description>
-                                                        This is the name of the group to send messages for specific profile
+                                                        This is the name of the group to send pick messages for specific profile
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="locTargetGroup" type="String" default="LOCATION">
+                                                        <description>
+                                                        This is the name of the group to send location messages for specific profile
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="authorTarget" type="String" default="EQCCT">
+                                                        <description>
+                                                        This author should match the origin (location) author for locations to be checked against quality control parameters.
                                                         </description>
                                                 </parameter>
                                                 <parameter name="stations" type="list:String">
@@ -140,9 +150,14 @@
                                                         Define the list of stations that are allowed to process in this specific profile. Fotmat: NET.STA
                                                         </description>
                                                 </parameter>
-                                                <parameter name="filters" type="list:String">
+                                                <parameter name="region" type="path" default="none">
                                                         <description>
-                                                        Define the list of filters to apply to the list of stations in this specific profile. Numer of stations must be equal to the number of filters.
+                                                        The BNA file defining regions (closed polygons) or tuple with 4 elements. Inside this region, the origin evaluation status is TrueOrgEvalStat, and outside is FalseOrgEvalStat. If this is set to none, then the origin location will not be checked against any polygon.
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="filters" type="path">
+                                                        <description>
+                                                        Location of the station-filter configuration file for specific profile. Line format: ["sta", "hp", "lp"], Example: STACODE,1.0,30.0
                                                         </description>
                                                 </parameter>
                                           </struct>
@@ -189,11 +204,6 @@
                                 <parameter name="azGapTHR" type="int" default="270">
                                         <description>
                                             Set the azimuthal gap threshold. Above this value, the origin evaluation status is FalseOrgEvalStat, and below is TrueOrgEvalStat.
-                                        </description>
-                                </parameter>
-                                <parameter name="region" type="string" default="none">
-                                        <description>
-                                            The BNA file defining regions (closed polygons) or tuple with 4 elements. Inside this region, the origin evaluation status is TrueOrgEvalStat, and outside is FalseOrgEvalStat. If this is set to none, then the origin location will not be checked against any polygon.
                                         </description>
                                 </parameter>
                                 <parameter name="TrueOrgEvalStat" type="int" default="5">

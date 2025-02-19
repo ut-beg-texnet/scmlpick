@@ -514,7 +514,8 @@ def mseed_predictor(stream=None,
               numCPUs = 1,
               gpu_id=None,
               gpu_limit=None,
-              maxStsTasksQueue=1): 
+              maxStsTasksQueue=1,
+              stations_filters=None): 
     
     """ 
     
@@ -574,7 +575,8 @@ def mseed_predictor(stream=None,
     "gpu_id": gpu_id,
     "gpu_limit": gpu_limit,
     "p_model":p_model,
-    "s_model":s_model
+    "s_model":s_model,
+    "stations_filters": stations_filters
     }
 
     picks = []
@@ -638,41 +640,9 @@ def mseed_predictor(stream=None,
 def parallel_predict(predict_args):
     # stream, pos, st, args, out_dir= predict_args
     stream, pos, st, args = predict_args
-    model = load_eqcct_model(args["p_model"], args["s_model"])
-
-    # save_dir = os.path.join(out_dir, str(st)+'_outputs')
-    # if os.path.isdir(save_dir):
-    #     shutil.rmtree(save_dir)
-    # os.makedirs(save_dir)
-    
-    # csvPr_gen = open(os.path.join(save_dir,'X_prediction_results.csv'), 'w')     
-    # predict_writer = csv.writer(csvPr_gen, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    # predict_writer.writerow(['file_name', 
-    #                         'network',
-    #                         'station',
-    #                         'instrument_type',
-    #                         'station_lat',
-    #                         'station_lon',
-    #                         'station_elv',
-    #                         'p_arrival_time',
-    #                         'p_probability',
-    #                         's_arrival_time',
-    #                         's_probability'])  
-    # csvPr_gen.flush()
-    #print(f"[{datetime.now()}] Started working on {st}...")
-    
-    start_Predicting = time.time()  
-    time_slots, comp_types = [], []
-    
-    # log.write('============ Station {} has {} chunks of data.'.format(st, len(uni_list)), flush=True)
-    #log.write(f"{f}")
-    # try:
-    meta, time_slots, comp_types, data_set = _readnparray(stream, args, time_slots, comp_types, st)
-    # except: #InternalMSEEDError:
-        # return f"[{datetime.now()}] {pos} {st}: FAILED the prediction (reading mSEED)."
-
-    # print(st)
-    # print(data_set)
+    model = load_eqcct_model(args["p_model"], args["s_model"])  
+    start_Predicting = time.time()   
+    meta, data_set = _readnparray(stream, args, st)
     batch_sizes = [args['batch_size'], 500, 250, 100, 50, 10, 5, 1]
     i = 0
     while True:
@@ -696,7 +666,6 @@ def parallel_predict(predict_args):
             picks.append(pick)
                                         
         end_Predicting = time.time() 
-        #data_track[st]=[time_slots, comp_types] 
         delta = (end_Predicting - start_Predicting) 
         # hour = int(delta / 3600)
         # delta -= hour * 3600
@@ -722,12 +691,9 @@ def parallel_predict(predict_args):
         #     time.sleep(5)
 
 
-def _readnparray(stream, args, time_slots, comp_types, st_name):
+def _readnparray(stream, args, st_name):
     'Read data from record stream and returns 3 dictionaries of numpy arrays, meta data, and time slice info'
-
     #output_wf = f""
-    # print('st_name')
-    # print(st_name)
 
     st = obspy.Stream()
     st = stream
@@ -735,53 +701,36 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
     st.detrend("linear")
     st.detrend('demean')
 
-    # temp_st = obspy.Stream()
-    # # temp_st.append(tr)
-    # temp_st = stream
-    # try:
-    #     temp_st.merge(fill_value=0)                     
-    # except Exception:
-    #     #temp_st =_resampling(temp_st)
-    #     temp_st.merge(fill_value=0) 
-    # temp_st.detrend('demean')
-    # if len(temp_st) > 0:
-    #     st += temp_st
-    # else:
-    #     return
-   
-    # for tr in st:
-    #     start_time = tr.stats.starttime
-    #     end_time = tr.stats.endtime
-    #     # print(tr)
-    #     # print(f'Start time {start_time}')
-    #     # print(f'End time {end_time}')
-
-
-    # print('Stream before Filter')
-    # print(st)
-
     start_time = min([tr.stats.starttime for tr in st])
     end_time = max([tr.stats.endtime for tr in st])
-    # staName = st[0].stats.station
+    staName = st[0].stats.station
 
     # st.write(f"{output_wf}/before/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
 
-    st.taper(max_percentage=0.05, type='cosine', max_length=1)
-    # st.trim(min([tr.stats.starttime for tr in st])-10, max([tr.stats.endtime for tr in st])+10, pad=True, fill_value=0)
-    st.filter(type='bandpass', freqmin = 1.0, freqmax = 45, corners=2, zerophase=True)
-    # st.trim(min([tr.stats.starttime for tr in st])+10, max([tr.stats.endtime for tr in st])-10)  
-    st.taper(max_percentage=0.05, type='cosine', max_length=1)
+    # Apply taper and bandpass filter
+    max_percentage = 5 / (st[0].stats.delta * st[0].stats.npts) # 5s of data will be tapered
+    st.taper(max_percentage=max_percentage, type='cosine')
+    freqmin = 1.0
+    freqmax = 45.0
+    if args["stations_filters"] is not None:
+        try:
+            df_filters = args["stations_filters"]
+            freqmin = df_filters[df_filters.sta == staName].iloc[0]["hp"]
+            freqmax = df_filters[df_filters.sta == staName].iloc[0]["lp"]
+        except:
+            pass
+    st.filter(type='bandpass', freqmin=freqmin, freqmax=freqmax, corners=2, zerophase=True)
 
+    # Interpolate if necessary
     if len([tr for tr in st if tr.stats.sampling_rate != 100.0]) != 0:
         try:
             st.interpolate(100, method="linear")
         except Exception:
             st=_resampling(st)  
-    
+
+    # Trim stream to the common start and end times
     st.trim(min([tr.stats.starttime for tr in st]), max([tr.stats.endtime for tr in st]), pad=True, fill_value=0)
-
     # st.write(f"{output_wf}/after/{start_time}_{end_time}_{staName}.mseed", format="MSEED")
-
     start_time = min([tr.stats.starttime for tr in st])+args['filterShift']
 
     st_Z = st.select(channel="*Z")
@@ -790,72 +739,46 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
             channelOut = tr.stats.channel
     else:
         channelOut = st[0].stats.channel
-    
+
+    # Prepare metadata
     meta = {"start_time":start_time,
             "end_time":end_time,
             # "trace_name":f"{f.split('/')[-2]}/{f.split('/')[-1]}"
             "trace_name":f"{st_name}.{st[0].stats.location}.{channelOut}"
              } 
-    
-    chanL = [tr.stats.channel[-1] for tr in st]
-    comp_types.append(len(chanL))
-    # time_shift = int(60-(args['overlap']*60))
-    # next_slice = start_time + 60
+
+    # Prepare component mapping and types
     data_set = {}
-    st_times = []        
-    # sl = 0 
-    # print(next_slice)
-    # print(end_time)
-    # while next_slice <= end_time:
+    st_times = []
+    components = {tr.stats.channel[-1]: tr for tr in st}
 
-    # tr_size = len(st[chanL.index(chanL[0])])
-    tr_size = 6000
-    npz_data = np.zeros([tr_size, 3]) 
+    # Define preferred components for each column
+    components_list = [
+        ['E', '1'],  # Column 0
+        ['N', '2'],  # Column 1
+        ['Z']        # Column 2
+    ]
+
+
     st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
+    npz_data = np.zeros((6000, 3))
 
-    w = st.slice(start_time, end_time)
-    # print('Stream send to EQCCT')
-    # print(w)
-    # w = st
-    # print(w)
-    # print(chanL)
-    if 'Z' in chanL:
-        npz_data[:,2] = w[chanL.index('Z')].data[:tr_size]
-    if ('E' in chanL) or ('1' in chanL):
-        try: 
-            npz_data[:,0] = w[chanL.index('E')].data[:tr_size]
-        except Exception:
-            npz_data[:,0] = w[chanL.index('1')].data[:tr_size]
-    if ('N' in chanL) or ('2' in chanL):
-        try:
-            npz_data[:,1] = w[chanL.index('N')].data[:tr_size]
-        except Exception:
-            npz_data[:,1] = w[chanL.index('2')].data[:tr_size]
-            
-    data_set.update({str(start_time).replace('T', ' ').replace('Z', '') : npz_data})
-   
-        # start_time = start_time + time_shift
-        # next_slice = next_slice + time_shift 
-        # sl += 1
-   
-    meta["trace_start_time"] = st_times
-    #print(stations_)
-    ''' 
-    try:
-        meta["receiver_code"]=st[0].stats.station
-        meta["instrument_type"]=st[0].stats.channel[:2]
-        meta["network_code"]=stations_[st[0].stats.station]['network']
-        meta["receiver_latitude"]=stations_[st[0].stats.station]['coords'][0]
-        meta["receiver_longitude"]=stations_[st[0].stats.station]['coords'][1]
-        meta["receiver_elevation_m"]=stations_[st[0].stats.station]['coords'][2]  
-    except Exception:
-        meta["receiver_code"]=st_name
-        meta["instrument_type"]=stations_[st_name]['channels'][0][:2]
-        meta["network_code"]=stations_[st_name]['network']
-        meta["receiver_latitude"]=stations_[st_name]['coords'][0]
-        meta["receiver_longitude"]=stations_[st_name]['coords'][1]
-        meta["receiver_elevation_m"]=stations_[st_name]['coords'][2] 
-    '''
+    for col_idx, comp_options in enumerate(components_list):
+        for comp in comp_options:
+            if comp in components:
+                tr = components[comp].copy().slice(start_time, end_time)
+                data = tr.data[:6000]
+                # Pad with zeros if data is shorter than 6000 samples
+                if len(data) < 6000:
+                    data = np.pad(data, (0, 6000 - len(data)), 'constant')
+                npz_data[:, col_idx] = data
+                break  # Stop after finding the first available component
+
+    key = str(start_time).replace('T', ' ').replace('Z', '')
+    data_set[key] = npz_data
+    meta["trace_start_time"] = st_times          
+
+    # Metadata population with default placeholders for now
     try:
         meta["receiver_code"]=st[0].stats.station
         meta["instrument_type"]=0
@@ -871,7 +794,7 @@ def _readnparray(stream, args, time_slots, comp_types, st_name):
         meta["receiver_longitude"]=0
         meta["receiver_elevation_m"]=0
                     
-    return meta, time_slots, comp_types, data_set
+    return meta, data_set
 
 
 class PreLoadGeneratorTest(tf.keras.utils.Sequence):

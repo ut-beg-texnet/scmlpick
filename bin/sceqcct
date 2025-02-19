@@ -203,10 +203,10 @@ class sceqcct(StreamApplication):
         except Exception as e:
             logging.info('azGapTHR could not be read : %s' % e)
 
-        try:
-            self.region = self.configGetString('qcheck.region')
-        except Exception as e:
-            logging.info('region could not be read : %s' % e)
+        # try:
+        #     self.region = self.configGetString('qcheck.region')
+        # except Exception as e:
+        #     logging.info('region could not be read : %s' % e)
 
         try:
             self.TrueOrgEvalStat = self.configGetInt('qcheck.TrueOrgEvalStat')
@@ -254,11 +254,27 @@ class sceqcct(StreamApplication):
                 profDic = {}
                 profDic['name'] = profile
                 try:
-                    profDic['targetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.targetGroup')
+                    profDic['pickTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickTargetGroup')
                 except:
-                    logging.warning('error when reading pipelines.profiles.'+profile+'.targetGroup')
-                    logging.warning('setting default targetGroup')
-                    profDic['targetGroup'] = ''
+                    logging.warning('Error when reading pipelines.profiles.'+profile+'.pickTargetGroup')
+                    logging.warning('setting default pickTargetGroup')
+                    profDic['pickTargetGroup'] = ''
+                    pass
+
+                try:
+                    profDic['locTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.locTargetGroup')
+                except:
+                    logging.warning('Error when reading pipelines.profiles.'+profile+'.locTargetGroup')
+                    logging.warning('setting default locTargetGroup')
+                    profDic['locTargetGroup'] = ''
+                    pass
+
+                try:
+                    profDic['authorTarget'] = self.configGetString('pipelines.profiles.'+profile+'.authorTarget')
+                except:
+                    logging.warning('Error when reading pipelines.profiles.'+profile+'.authorTarget')
+                    logging.warning('setting default authorTarget')
+                    profDic['authorTarget'] = ''
                     pass
 
                 try:
@@ -270,11 +286,19 @@ class sceqcct(StreamApplication):
                     pass
 
                 try:
-                    profDic['filters'] = self.configGetStrings('pipelines.profiles.'+profile+'.filters')
+                    profDic['region'] = self.configGetString('pipelines.profiles.'+profile+'.region')
                 except:
-                    logging.warning('error when reading pipelines.profiles.'+profile+'.filters')
-                    logging.warning('setting filters = ""')
-                    profDic['filters'] = ''
+                    logging.warning('error when reading pipelines.profiles.'+profile+'.region')
+                    logging.warning('setting stations = ""')
+                    profDic['region'] = ''
+                    pass
+
+                try:
+                    profDic['filtersFile'] = self.configGetString('pipelines.profiles.'+profile+'.filtersFile')
+                except:
+                    logging.warning('error when reading pipelines.profiles.'+profile+'.filtersFile')
+                    logging.warning('setting filtersFile = ""')
+                    profDic['filtersFile'] = ''
                     pass
                 self.profiles.append(profDic)
         else:
@@ -369,7 +393,6 @@ class sceqcct(StreamApplication):
         return streamIDs
                 
     def handleRecord(self, rec):
-
         params = {
             "filterShift" : self.filterShift,
             "share_path" : self.ei.shareDir(),
@@ -387,6 +410,10 @@ class sceqcct(StreamApplication):
             "gpu_limit": self.gpuLimit,
             "maxStsTasksQueue": self.maxStsTasksQueue,
             }
+        try:
+            params["df_filters"] = pd.read_csv(params["filtersFile"], header=None, names=["sta", "hp", "lp"])
+        except:
+            params["df_filters"] = None
 
         # diftime = diftime.seconds()
         # streamid = "%s.%s.%s.%s"%tuple(rec.streamID().split('.'))
@@ -960,7 +987,8 @@ class sceqcct(StreamApplication):
                         numCPUs       = params['numCPUs'],
                         gpu_id        = params['gpu_id'],
                         gpu_limit     = params['gpu_limit'],
-                        maxStsTasksQueue = params['maxStsTasksQueue'])
+                        maxStsTasksQueue = params['maxStsTasksQueue'],
+                        stations_filters = params['df_filters'])
         
         return picks
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
@@ -1064,7 +1092,7 @@ class sceqcct(StreamApplication):
                 logging.debug("net %s" % pickObj.waveformID().networkCode())
                 netSta = f"{pickObj.waveformID().networkCode()}.{pickObj.waveformID().stationCode()}"
                 if netSta in profile["stations"]:
-                    target = profile["targetGroup"]
+                    target = profile["pickTargetGroup"]
                     if target:
                         logging.debug("Trying to send pick %s to %s" % (netSta,target))
                         out = self.connection().send(target,msg)
@@ -1178,29 +1206,35 @@ class sceqcct(StreamApplication):
         """
         Test origins
         """
-        try:
-            logging.debug("Received origin %s" % org.publicID())
-            checkQc = self.qualityCheckOrigin(org)
-            if self.region != 'none':
-                checkReg = self.geographicCheckOrigin(self.region, org)
+        logging.debug("Received origin %s" % org.publicID())
+        author = org.CreationInfo().author()
+        logging.debug("PROFILES %s" % self.profiles)
+        for profile in self.profiles:
+            if author == profile["authorTarget"]:
+                try:
+                    polygon = profile["region"]
+                    if polygon != 'none':
+                        checkReg = self.geographicCheckOrigin(polygon, org)
+                    else:
+                        checkReg = True
+                    checkQc = self.qualityCheckOrigin(org)
+                except:
+                    logging.error("Error when performing quality checks for the origin %s" % org.publicID())
+                    return
+                if checkQc and checkReg:
+                    org = self.changeOrigStatus(org,self.TrueOrgEvalStat)
+                else:
+                    org = self.changeOrigStatus(org,self.FalseOrgEvalStat)
+                locTarget = profile["locTargetGroup"]
+                if org and locTarget:
+                    msg = NotifierMessage()
+                    n = Notifier("EventParameters", op, org)
+                    msg.attach(n)
+                    out = self.connection().send(locTarget,msg)
+                    logging.debug("Evaluation status updated? %s" % "Yes" if out else "No, failed" )
             else:
-                checkReg = True
-        except:
-            logging.error("Error when performing quality checks for the origin %s" % org.publicID())
-            return
-
-        if checkQc and checkReg:
-            org = self.changeOrigStatus(org,self.TrueOrgEvalStat)
-        else:
-            org = self.changeOrigStatus(org,self.FalseOrgEvalStat)
-
-        if org:
-            msg = NotifierMessage()
-            n = Notifier("EventParameters", op, org)
-            msg.attach(n)
-            out = self.connection().send(msg)
-            logging.debug("Evaluation status updated? %s" % "Yes" if out else "No, failed" )
-
+                logging.debug("Author %s not in sceqcct profile %s" %(author,profile["name"]))
+            
     def addObject(self, parentID, object):
         """
         Call-back function if a new object is received.
