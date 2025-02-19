@@ -720,6 +720,7 @@ def _readnparray(stream, args, st_name):
         except:
             pass
     st.filter(type='bandpass', freqmin=freqmin, freqmax=freqmax, corners=2, zerophase=True)
+    print(f"Station: {staName} Filter: BW(2,{freqmin},{freqmax}")
 
     # Interpolate if necessary
     if len([tr for tr in st if tr.stats.sampling_rate != 100.0]) != 0:
