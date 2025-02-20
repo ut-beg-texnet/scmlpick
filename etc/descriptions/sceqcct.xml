@@ -155,7 +155,7 @@
                                                         The BNA file defining regions (closed polygons) or tuple with 4 elements. Inside this region, the origin evaluation status is TrueOrgEvalStat, and outside is FalseOrgEvalStat. If this is set to none, then the origin location will not be checked against any polygon.
                                                         </description>
                                                 </parameter>
-                                                <parameter name="filters" type="path">
+                                                <parameter name="filtersFile" type="path">
                                                         <description>
                                                         Location of the station-filter configuration file for specific profile. Line format: ["sta", "hp", "lp"], Example: STACODE,1.0,30.0
                                                         </description>

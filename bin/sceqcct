@@ -912,7 +912,7 @@ class sceqcct(StreamApplication):
                         gpu_id        = params['gpu_id'],
                         gpu_limit     = params['gpu_limit'],
                         maxStsTasksQueue = params['maxStsTasksQueue'],
-                        stations_filters = params['df_filters'])
+                        stations_filters = params["df_filters"])
         
         return picks
         # picks2xml(input_file=output_eqcct, output_file=f"./{pathResutls}/picks/picks_{begin}_{end}.xml", ai='eqcc', thr_dict=self.probThreshold)
@@ -936,9 +936,10 @@ class sceqcct(StreamApplication):
         timeQ.setValue(scPtime)
         # timeQ.setUncertainty(float(pickData[strProp]))
         pick.setTime(timeQ)
+        propValue = str(pickData[strProp])
         comm = Comment()
         comm.setId('eqcctProb')
-        comm.setText(str(pickData[strProp]))
+        comm.setText(propValue)
         ci = CreationInfo()
         ci.setCreationTime(Time().GMT())
         comm.setCreationInfo(ci)
@@ -971,7 +972,8 @@ class sceqcct(StreamApplication):
         pick.setMethodID('EQCCT')
         pick.setEvaluationMode(1)
         pick.setCreationInfo(ci)
-        filterAndProp = "  ".join([f"prop:  {strProp}", f"filt: {filterID}"])
+        
+        filterAndProp = "  ".join([f"prop:  {propValue}", f"filt: {filterID}"])
         pick.setFilterID(filterAndProp)
 
         logging.debug("Pick produced by EQCCT %s.%s" % (pick.waveformID().networkCode(), pick.waveformID().stationCode()))
@@ -1147,8 +1149,9 @@ class sceqcct(StreamApplication):
         Test origins
         """
         logging.debug("Received origin %s" % org.publicID())
-        author = org.CreationInfo().author()
-        logging.debug("PROFILES %s" % self.profiles)
+        author = org.creationInfo().author()
+        profNames = (list(map(lambda p: p['name'], self.profiles)))
+        logging.debug("PROFILES %s" % profNames)
         for profile in self.profiles:
             if author == profile["authorTarget"]:
                 try:

@@ -712,15 +712,12 @@ def _readnparray(stream, args, st_name):
     st.taper(max_percentage=max_percentage, type='cosine')
     freqmin = 1.0
     freqmax = 45.0
-    print(["stations_filters"])
     if args["stations_filters"] is not None:
         try:
             df_filters = args["stations_filters"]
             freqmin = df_filters[df_filters.sta == staName].iloc[0]["hp"]
             freqmax = df_filters[df_filters.sta == staName].iloc[0]["lp"]
-            print(f'{freqmin},{freqmax}')
         except:
-            print(f'Error')
             pass
     st.filter(type='bandpass', freqmin=freqmin, freqmax=freqmax, corners=2, zerophase=True)
     print(f"Station: {staName} Filter: BW(2,{freqmin},{freqmax})")
