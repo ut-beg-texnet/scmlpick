@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3
 
 """
 Copyright (C) by TexNet/CISR
@@ -401,6 +401,9 @@ class sceqcct(StreamApplication):
             else:
                 logging.debug('No data')
                 return
+        else:
+            logging.debug('No data')
+            return
 
         startTime = rec.startTime()
         endTime =  rec.endTime()
@@ -414,7 +417,12 @@ class sceqcct(StreamApplication):
         end_time = pd.to_datetime(str(endTime))
         traceID = f'{net}.{sta}.{loc}.{chan}'
 
-        data = np.array(data)
+        try:
+            data = np.array(data)
+        except:
+            logging.debug('No data')
+            return
+
         header = {
             'network': net, 
             'station': sta, 
@@ -504,13 +512,13 @@ class sceqcct(StreamApplication):
        
         self.checkCommonChan(self.stream[index])
 
-        if self.streamPick:
-            logging.info("STREAM PICK")
-            logging.info("\n".join(str(trace) for trace in self.streamPick))
+        #if self.streamPick:
+        #    logging.info("STREAM PICK")
+        #    logging.info("\n".join(str(trace) for trace in self.streamPick))
 
-        if self.delayStream:
-            logging.info("DELAY STREAM PICK")
-            logging.info("\n".join(str(trace) for trace in self.delayStream))
+        #if self.delayStream:
+        #    logging.info("DELAY STREAM PICK")
+        #    logging.info("\n".join(str(trace) for trace in self.delayStream))
 
         # Adding delayed stations with data for all channels avail. to delayStaSend
         self.checkChannDelay(self.stream[index])
