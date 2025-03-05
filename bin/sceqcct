@@ -7,7 +7,7 @@ Author of the Software: Camilo Munoz
 """
 
 import logging as stdlogging
-import sys, os, ray, time, threading, traceback
+import sys, os, ray, time, traceback
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -24,6 +24,8 @@ sys.path.append(share_path)
 from predictor import mseed_predictor
 import fnmatch
 import psutil
+import threading
+import queue
 
 # import main_picks as picks2xml
 
@@ -60,6 +62,8 @@ class sceqcct(StreamApplication):
         self.profiles = []
         # Control variable to stop monitoring when there are no more tasks
         self.tasks_ids_end = threading.Event()
+        self.task_queue = queue.Queue()
+        self.last_queue_size = 0
 
     def initConfiguration(self):
         """
@@ -235,7 +239,8 @@ class sceqcct(StreamApplication):
         # self.pool = Pool(processes=pool_size)
 
         # Start a thread to monitor the results without blocking the main process
-        self.monitorThread = threading.Thread(target=self.monitorTasks, args=(self.tasks_ids,))
+        #self.monitorThread = threading.Thread(target=self.monitorTasks, args=(self.tasks_ids,))
+        self.monitorThread = threading.Thread(target=self.monitorTasks)
         self.monitorThread.start()
 
         # Allocates X amount of CPUs for the function of creating tasks 
@@ -642,7 +647,9 @@ class sceqcct(StreamApplication):
             
         # Run EQCCT picker
         # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStDelay,params))
-        self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStDelay,params))
+        # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStDelay,params))
+        self.task_queue.put(sceqcct.run_picker.remote(startMinute, endMinute, self.oneMinuteStDelay, params))
+        self.log_queue_size()
         logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStDelay} assigned.")
         logging.info(f"The main process continues to generate and launch tasks.")
 
@@ -694,7 +701,9 @@ class sceqcct(StreamApplication):
             
         # Run EQCCT picker
         # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-        self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
+        #self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
+        self.task_queue.put(sceqcct.run_picker.remote(startMinute, endMinute,self.oneMinuteStream,params))
+        self.log_queue_size()
         logging.info(f"Task for data {startMinute}, {endMinute}, {self.oneMinuteStream} assigned.")
         logging.info(f"The main process continues to generate and launch tasks.")
 
@@ -797,14 +806,33 @@ class sceqcct(StreamApplication):
 
         return picks
 
-    def monitorTasks(self, tasks_ids):
+    def log_queue_size(self):
+        current_size = self.task_queue.qsize()
+        if current_size != self.last_queue_size:
+            logging.info(f"Pending tasks on the monitor: {current_size}")
+            self.last_queue_size = current_size
+
+    def monitorTasks(self):
         results = []
         
-        while tasks_ids or not self.tasks_ids_end.is_set():
+        #while tasks_ids or not self.tasks_ids_end.is_set():
+        while not self.tasks_ids_end.is_set() or not self.task_queue.empty():
             # We check the completed results without blocking
             try:
+                tasks_ids = []
+
+                for _ in range(10):
+                    try:
+                        tasks_ids.append(self.task_queue.get(timeout=1))
+                    except queue.Empty:
+                        break  # Si no hay más tareas, sale del bucle
+
+                # while not self.task_queue.empty():
+                    # tasks_ids.append(self.task_queue.get_nowait())
+
                 if tasks_ids:
-                    results_ready, tasks_ids[:] = ray.wait(tasks_ids, num_returns=len(tasks_ids), timeout=1)
+                    results_ready, remaining_tasks = ray.wait(tasks_ids, num_returns=min(10, len(tasks_ids)), timeout=1)
+                    #results_ready, tasks_ids[:] = ray.wait(tasks_ids, num_returns=len(tasks_ids), timeout=1)
                 
                     # We process the results that are ready
                     for result_id in results_ready:
@@ -816,42 +844,18 @@ class sceqcct(StreamApplication):
                         except Exception as task_error:
                             logging.error("Error while processing task {}".format(task_error))
                             logging.error(traceback.format_exc())
-                time.sleep(1)  # Short pause to avoid excessive CPU usage
-                logging.info(f"Pending tasks on the monitor: {len(tasks_ids)}")
+                    
+                    for task in remaining_tasks:
+                        self.task_queue.put(task)
+
+                self.log_queue_size()
+
             except Exception as e:
                 logging.error("Task Monitor Error {}".format(e))
                 logging.error(traceback.format_exc())
 
         logging.info(f"The monitor has processed all the results.")
         return results
-
-        # Call the function asynchronously
-        # print('SEND TASK')
-        # result = self.pool.apply_async(sceqcct.run_picker, (startMinute, endMinute, oneMinuteStream, params))
-        # print(result.get())
-
-        # task = sceqcct.run_picker.remote(startMinute,endMinute,oneMinuteStream,params)
-        # self.tasks.append(task)
-        # logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
-
-        # # Process results as they are ready without blocking
-        # async def process_results():
-        #     while self.tasks:
-        #         # Wait for any task to be ready
-        #         ready, self.tasks = ray.wait(self.tasks, num_returns=1, timeout=1)
-
-        #         # Process the result of the ready task
-        #         for task in ready:
-        #             result = ray.get(task)  # Retrieve the result
-        #             print(f"Processed result: {result}")
-        #             self.scPhase(result)
-        #         # Main process can continue while tasks are still pending
-        #         print("Main process continues working...")
-        # # Continue doing other work in the main process
-        # print("Main process doing other work while Ray tasks run in background...")
-
-        # # Run the result processing concurrently with other tasks
-        # asyncio.create_task(process_results())
 
     @staticmethod
     def picker(task,stream,params):
@@ -1192,7 +1196,7 @@ def set_cpu_affinity(cores):
 
 if __name__ == '__main__':
     import sys
-    allowed_cores = [0, 1]
-    set_cpu_affinity(allowed_cores)
+    #allowed_cores = [0, 1]
+    #set_cpu_affinity(allowed_cores)
     app = sceqcct()
     sys.exit(app())
