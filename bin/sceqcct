@@ -23,6 +23,7 @@ share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
 sys.path.append(share_path)
 from predictor import mseed_predictor
 import fnmatch
+import psutil
 
 # import main_picks as picks2xml
 
@@ -1184,7 +1185,14 @@ class sceqcct(StreamApplication):
     def run(self):
         return StreamApplication.run(self)
 
+def set_cpu_affinity(cores):
+    """Set CPU affinity for the current process."""
+    p = psutil.Process(os.getpid())
+    p.cpu_affinity(cores)
+
 if __name__ == '__main__':
     import sys
+    allowed_cores = [0, 1]
+    set_cpu_affinity(allowed_cores)
     app = sceqcct()
     sys.exit(app())
