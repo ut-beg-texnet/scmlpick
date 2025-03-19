@@ -618,12 +618,18 @@ class sceqcct(StreamApplication):
                 if Nminutes > 0:
                     startMinute = self.delayStream[i].stats.starttime
                     endMinute = self.delayStream[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                    traceMin = trace.slice(
-                                        starttime=startMinute,
-                                        endtime=endMinute
-                                        )
-                    self.oneMinuteStDelay.append(traceMin)
-                    toRemove.append(i)
+                    if endMinute > self.delayStream[i].stats.endtime:
+                        Nminutes -= 1
+                        endMinute = startMinute + (Nminutes * self.windowLength) + self.filterShift
+                    if Nminutes > 0:
+                        traceMin = trace.slice(
+                                            starttime=startMinute,
+                                            endtime=endMinute
+                                            )
+                        self.oneMinuteStDelay.append(traceMin)
+                        toRemove.append(i)
+                    else:
+                        logging.info(f"This should never happen, Trying to send a trace with less than a minute duration {self.delayStream[i]}")
                 else:
                     logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{self.delayStream[i]}")
                     continue
@@ -672,12 +678,18 @@ class sceqcct(StreamApplication):
                 if Nminutes > 0:
                     startMinute = self.streamPick[i].stats.starttime
                     endMinute = self.streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                    traceMin = trace.slice(
+                    if endMinute > self.streamPick[i].stats.endtime:
+                        Nminutes -= 1
+                        endMinute = startMinute + (Nminutes * self.windowLength) + self.filterShift
+                    if Nminutes > 0:
+                        traceMin = trace.slice(
                                         starttime=startMinute,
                                         endtime=endMinute
                                         )
-                    self.oneMinuteStream.append(traceMin)
-                    toRemove.append(i)
+                        self.oneMinuteStream.append(traceMin)
+                        toRemove.append(i)
+                    else:
+                        logging.info(f"This should never happen, Trying to send a trace with less than a minute duration {self.delayStream[i]}")
                 else:
                     logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{self.streamPick[i]}")
                     continue
@@ -816,16 +828,18 @@ class sceqcct(StreamApplication):
         results = []
         
         #while tasks_ids or not self.tasks_ids_end.is_set():
-        while not self.tasks_ids_end.is_set() or not self.task_queue.empty():
+        #while not self.tasks_ids_end.is_set() or not self.task_queue.empty():
+        while not self.tasks_ids_end.is_set() or (not self.task_queue.empty() and not self.tasks_ids_end.is_set()):
             # We check the completed results without blocking
             try:
                 tasks_ids = []
 
                 for _ in range(10):
                     try:
-                        tasks_ids.append(self.task_queue.get(timeout=1))
+                        # tasks_ids.append(self.task_queue.get(timeout=1))
+                        tasks_ids.append(self.task_queue.get_nowait())
                     except queue.Empty:
-                        break  # Si no hay más tareas, sale del bucle
+                        break
 
                 # while not self.task_queue.empty():
                     # tasks_ids.append(self.task_queue.get_nowait())
@@ -837,7 +851,7 @@ class sceqcct(StreamApplication):
                     # We process the results that are ready
                     for result_id in results_ready:
                         try:
-                            result = ray.get(result_id)
+                            result = ray.get(result_id, timeout=1)
                             logging.info(f"Result received on the monitor: {result}")
                             self.scPhase(result)
                             results.append(result)
@@ -1196,7 +1210,13 @@ def set_cpu_affinity(cores):
 
 if __name__ == '__main__':
     import sys
-    #allowed_cores = [0, 1]
-    #set_cpu_affinity(allowed_cores)
+    script_name = os.path.basename(sys.argv[0])
+    core_mappings = {
+        "sceqcctDEL": list(range(0, 26)),
+        "sceqcctMIDEF": list(range(27, 53)),
+        "sceqcctMORE": list(range(54, 80)),
+    }
+    listCores = core_mappings.get(script_name, list(range(0, 4)))
+    set_cpu_affinity(listCores)
     app = sceqcct()
     sys.exit(app())
