@@ -836,8 +836,8 @@ class sceqcct(StreamApplication):
 
                 for _ in range(10):
                     try:
-                        # tasks_ids.append(self.task_queue.get(timeout=1))
-                        tasks_ids.append(self.task_queue.get_nowait())
+                        tasks_ids.append(self.task_queue.get(timeout=1))
+                        # tasks_ids.append(self.task_queue.get_nowait())
                     except queue.Empty:
                         break
 
