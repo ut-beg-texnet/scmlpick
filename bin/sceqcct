@@ -851,7 +851,7 @@ class sceqcct(StreamApplication):
                     # We process the results that are ready
                     for result_id in results_ready:
                         try:
-                            result = ray.get(result_id, timeout=1)
+                            result = ray.get(result_id)
                             logging.info(f"Result received on the monitor: {result}")
                             self.scPhase(result)
                             results.append(result)
