@@ -618,7 +618,7 @@ class sceqcct(StreamApplication):
                 if Nminutes > 0:
                     startMinute = self.delayStream[i].stats.starttime
                     endMinute = self.delayStream[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                    if endMinute > self.delayStream[i].stats.endtime:
+                    if endMinute > self.delayStream[i].stats.endtime and Nminutes > 1:
                         Nminutes -= 1
                         endMinute = startMinute + (Nminutes * self.windowLength) + self.filterShift
                     if Nminutes > 0:
@@ -678,7 +678,7 @@ class sceqcct(StreamApplication):
                 if Nminutes > 0:
                     startMinute = self.streamPick[i].stats.starttime
                     endMinute = self.streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                    if endMinute > self.streamPick[i].stats.endtime:
+                    if endMinute > self.streamPick[i].stats.endtime and Nminutes > 1:
                         Nminutes -= 1
                         endMinute = startMinute + (Nminutes * self.windowLength) + self.filterShift
                     if Nminutes > 0:
@@ -828,8 +828,8 @@ class sceqcct(StreamApplication):
         results = []
         
         #while tasks_ids or not self.tasks_ids_end.is_set():
-        #while not self.tasks_ids_end.is_set() or not self.task_queue.empty():
-        while not self.tasks_ids_end.is_set() or (not self.task_queue.empty() and not self.tasks_ids_end.is_set()):
+        #while not self.tasks_ids_end.is_set() or (not self.task_queue.empty() and not self.tasks_ids_end.is_set()):
+        while not self.tasks_ids_end.is_set() or not self.task_queue.empty():
             # We check the completed results without blocking
             try:
                 tasks_ids = []
