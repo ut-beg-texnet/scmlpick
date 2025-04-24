@@ -1,0 +1,1 @@
+from .predictor import mseed_predictor

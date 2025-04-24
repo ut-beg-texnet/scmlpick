@@ -19,8 +19,9 @@ from obspy import Stream, Trace, UTCDateTime
 from pathlib import Path
 from seiscomp.system import Environment
 from multiprocessing import Pool
-share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
-sys.path.append(share_path)
+#share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
+#sys.path.append(share_path)
+#from predictor import mseed_predictor
 from predictor import mseed_predictor
 import fnmatch
 import psutil
@@ -233,7 +234,7 @@ class sceqcct(StreamApplication):
         self.startTime = UTCDateTime(pd.to_datetime(str(self.now)) + timedelta(seconds=self.startLatency))
         logging.info("Starting time %s " % self.now)
         logging.info("Starting time plus start latency %s " % self.startTime)
-        predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
+        # predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
         # Creating pool for multiprocessing 
         # pool_size = 4 # New cfg file parameter
         # self.pool = Pool(processes=pool_size)
@@ -244,7 +245,8 @@ class sceqcct(StreamApplication):
         self.monitorThread.start()
 
         # Allocates X amount of CPUs for the function of creating tasks 
-        ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
+        # ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
+        ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False)
         logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
         return True
 
@@ -875,10 +877,10 @@ class sceqcct(StreamApplication):
     def picker(task,stream,params):
 
         picks = None
-        eqcctPath = os.path.join(params['share_path'], "sceqcct/tools")
-        # share_path = os.path.abspath("../share/sceqcct/tools")
-        sys.path.append(eqcctPath)
-        predictor = __import__('predictor')
+        #eqcctPath = os.path.join(params['share_path'], "sceqcct/tools")
+        ## share_path = os.path.abspath("../share/sceqcct/tools")
+        #sys.path.append(eqcctPath)
+        #predictor = __import__('predictor')
 
         pos, starttime, endtime, stations = task
         # begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
