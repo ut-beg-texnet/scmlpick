@@ -122,7 +122,7 @@ Step 2: Clone the Repository
 
 Clone the project repository into any local directory:
 
-git clone https://github.com/your-username/your-project.git
+git clone https://github.austin.utexas.edu/texnet/eqcct-dev.git
 
 (Replace with the actual repository URL when publicly available.)
 
