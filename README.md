@@ -79,27 +79,29 @@ silence_tensorflow
 It is strongly recommended to install these packages inside a dedicated virtual environment (e.g., Conda) to ensure compatibility.
 
 Predictor Installation
+
 The predictor module must be installed after configuring all prerequisites. The installation procedure depends on whether a virtual environment is being used.
 
 ➔ If NOT using a virtual environment:
-bash
-Copiar
-Editar
+
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+
 pip3 install -e .
+
 ➔ If using a Conda or other virtual environment:
-bash
-Copiar
-Editar
 
  - Activate your environment
+
 conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
 
  - Navigate to the predictor directory
+
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
 
  - Install the predictor module
+
 pip install -e .
+
 Note: The installation must be performed within the activated environment to ensure that dependencies are correctly registered.
 
 ### Installation Steps
@@ -107,29 +109,29 @@ Note: The installation must be performed within the activated environment to ens
 Follow the steps below to fully install and configure the software:
 
 Step 1: Install SeisComP
+
 The SeisComP system must be installed prior to installing this module.
 
 Download and install SeisComP version ≥ 4.0.0 (strongly recommended: version ≥ 6.0.0) following the official installation instructions:
+
 https://docs.seiscomp.de/
 
 Verify that SeisComP is properly installed and configured in your system.
 
 Step 2: Clone the Repository
+
 Clone the project repository into any local directory:
 
-bash
-Copiar
-Editar
 git clone https://github.com/your-username/your-project.git
+
 (Replace with the actual repository URL when publicly available.)
 
 Step 3: Deploy the Code into SeisComP Installation Directory
+
 Copy all necessary files into your SeisComP installation using rsync to preserve the directory structure:
 
-bash
-Copiar
-Editar
 rsync -av /path/to/your-cloned-repository/ /path/to/your-seiscomp-installation/
+
 Replace /path/to/your-cloned-repository/ with the absolute path of your cloned repository.
 
 Replace /path/to/your-seiscomp-installation/ with the root directory of your SeisComP installation (typically $SEISCOMP_ROOT/).
@@ -139,39 +141,46 @@ Replace /path/to/your-seiscomp-installation/ with the root directory of your Sei
 Step 4: Install Python Dependencies
 It is strongly recommended to install all dependencies inside a dedicated Conda environment to ensure full compatibility.
 
-bash
-Copiar
-Editar
  - Create a new environment (optional)
+
 conda create -n sceqcct python=3.10
 
  - Activate the environment
+
 conda activate sceqcct
 
  - Install required packages
+
 pip install ray
+
 pip install numpy==1.26.4
+
 pip install pandas
+
 pip install obspy
+
 pip install tensorflow
+
 pip install silence_tensorflow
+
 Step 5: Install Predictor Module
+
 The predictor component must be installed manually after configuring all dependencies. The procedure differs slightly depending on whether you are using a virtual environment:
 
 ➔ If NOT using a virtual environment:
-bash
-Copiar
-Editar
+
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+
 pip3 install -e .
+
 ➔ If using a Conda or other virtual environment:
-bash
-Copiar
-Editar
+
  - Activate your environment
+
 conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
 
  - Navigate to the predictor directory
+
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
 
  - Install the predictor module
