@@ -1,6 +1,6 @@
 # sceqcct
 
-A concise and informative description of the scientific project, highlighting its primary objective and scope.
+sceqcct is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
 
 ## Table of Contents
 
