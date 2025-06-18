@@ -7,13 +7,13 @@ sceqcct is a SeisComP module integrating the deep learning model EQCCT for real-
 - [Project Description](#project-description)
 - [Features](#features)
 - [Installation](#installation)
-- [Usage](#usage)
+<!-- - [Usage](#usage)
 - [Data](#data)
 - [Reproducibility](#reproducibility)
 - [Dependencies](#dependencies)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
-- [Contact](#contact)
+- [Contact](#contact) -->
 
 ## Project Description
 
