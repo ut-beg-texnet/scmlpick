@@ -91,13 +91,14 @@ pip3 install -e .
 bash
 Copiar
 Editar
-# Activate your environment
+
+ - Activate your environment
 conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
 
-# Navigate to the predictor directory
+ - Navigate to the predictor directory
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
 
-# Install the predictor module
+ - Install the predictor module
 pip install -e .
 Note: The installation must be performed within the activated environment to ensure that dependencies are correctly registered.
 
@@ -141,13 +142,13 @@ It is strongly recommended to install all dependencies inside a dedicated Conda 
 bash
 Copiar
 Editar
-# Create a new environment (optional)
+ - Create a new environment (optional)
 conda create -n sceqcct python=3.10
 
-# Activate the environment
+ - Activate the environment
 conda activate sceqcct
 
-# Install required packages
+ - Install required packages
 pip install ray
 pip install numpy==1.26.4
 pip install pandas
@@ -167,11 +168,11 @@ pip3 install -e .
 bash
 Copiar
 Editar
-# Activate your environment
+ - Activate your environment
 conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
 
-# Navigate to the predictor directory
+ - Navigate to the predictor directory
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
 
-# Install the predictor module
+ - Install the predictor module
 pip install -e .
