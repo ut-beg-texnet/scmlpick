@@ -1,4 +1,4 @@
-# Project Title
+# sceqcct
 
 A concise and informative description of the scientific project, highlighting its primary objective and scope.
 
