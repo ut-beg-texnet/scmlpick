@@ -27,18 +27,18 @@ The sceqcct module supports multiple pipelines within a single execution, enabli
 
 This tool represents a significant step forward in integrating state-of-the-art machine learning techniques into established seismic monitoring frameworks, enhancing the capacity for real-time earthquake detection, catalog building, and early warning systems.
 
-## ✨ Features
+## Features
 
 - ✅ Seamless integration of the **EQCCT** deep learning phase picker into **SeisComP** for real-time seismic monitoring.
-- 🧠 Utilizes **Compact Convolutional Transformer (CCT)** architecture, combining convolutional layers and transformer encoders to extract robust time-series features from waveform data.
-- 🔄 Supports **simultaneous execution** of multiple independent processing pipelines within a single instance, enabling differentiated operational workflows.
-- ⚙️ **Highly configurable** via user-defined station/channel lists, model selection, probability thresholds, and processing frequencies.
-- ⏱️ **Real-time phase picking** with latencies typically below **60 seconds** after phase arrival — significantly faster than playback-based methods.
-- 🧵 Optimized **parallelization framework** for efficient resource usage on computationally constrained systems.
-- 🌐 Designed to operate on **regional and dense seismic networks** with mixed sensor types and varying data quality.
-- 📦 Fully compatible with **EQCCT pretrained models**, including those trained on global datasets (e.g., **STEAD**) and regional datasets (e.g., **TexNet**).
-- 🛰️ Facilitates integration into **cataloging, early warning, and rapid response systems** via standard SeisComP messaging groups.
-- 🤖 Reduces manual intervention by improving phase pick **reliability in noisy or complex signal environments**.
+- ✅ Utilizes **Compact Convolutional Transformer (CCT)** architecture, combining convolutional layers and transformer encoders to extract robust time-series features from waveform data.
+- ✅ Supports **simultaneous execution** of multiple independent processing pipelines within a single instance, enabling differentiated operational workflows.
+- ✅ **Highly configurable** via user-defined station/channel lists, model selection, probability thresholds, and processing frequencies.
+- ✅ **Real-time phase picking** with latencies typically below **60 seconds** after phase arrival — significantly faster than playback-based methods.
+- ✅ Optimized **parallelization framework** for efficient resource usage on computationally constrained systems.
+- ✅ Designed to operate on **regional and dense seismic networks** with mixed sensor types and varying data quality.
+- ✅ Fully compatible with **EQCCT pretrained models**, including those trained on global datasets (e.g., **STEAD**) and regional datasets (e.g., **TexNet**).
+- ✅ Facilitates integration into **cataloging, early warning, and rapid response systems** via standard SeisComP messaging groups.
+- ✅ Reduces manual intervention by improving phase pick **reliability in noisy or complex signal environments**.
 
 
 ## Installation
@@ -91,7 +91,7 @@ silence_tensorflow
 
 ---
 
-## 📦 Predictor Installation
+## Predictor Installation
 
 The `sceqcct-predicctor` module must be installed **after** all prerequisites have been configured. The installation procedure depends on whether a virtual environment is being used.
 
@@ -130,13 +130,13 @@ pip3 install -e .
 > 🔒 **Note**: Installation must be performed *within the activated environment* to ensure all dependencies are correctly registered.
 
 
-## 🚀 Installation Steps
+## Installation Steps
 
 Follow the steps below to fully install and configure the software:
 
 ---
 
-### 🧱 Step 1: Install SeisComP
+### Step 1: Install SeisComP
 
 The SeisComP system must be installed prior to installing this module.
 
@@ -150,7 +150,7 @@ The SeisComP system must be installed prior to installing this module.
 
 ---
 
-### 📥 Step 2: Clone the Repository
+### Step 2: Clone the Repository
 
 Clone the project repository into any local directory:
 
@@ -162,7 +162,7 @@ git clone https://github.austin.utexas.edu/texnet/eqcct-dev.git
 
 ---
 
-### 🗂️ Step 3: Deploy the Code into SeisComP Installation Directory
+### Step 3: Deploy the Code into SeisComP Installation Directory
 
 Copy all necessary files into your SeisComP installation using `rsync` to preserve the directory structure:
 
@@ -177,7 +177,7 @@ rsync -av /path/to/your-cloned-repository/ /path/to/your-seiscomp-installation/
 
 ---
 
-### 🐍 Step 4: Install Python Dependencies
+### Step 4: Install Python Dependencies
 
 It is **strongly recommended** to use a dedicated Conda environment for installing dependencies.
 
@@ -206,7 +206,7 @@ It is **strongly recommended** to use a dedicated Conda environment for installi
 
 ---
 
-### 📦 Step 5: Install Predictor Module
+###  Step 5: Install Predictor Module
 
 The `sceqcct-predicctor` component must be installed **after all dependencies** have been configured.
 
