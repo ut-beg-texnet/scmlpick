@@ -1,6 +1,6 @@
 # sceqcct
 
-sceqcct is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
+**sceqcct** is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
 
 ## Table of Contents
 
@@ -27,161 +27,218 @@ The sceqcct module supports multiple pipelines within a single execution, enabli
 
 This tool represents a significant step forward in integrating state-of-the-art machine learning techniques into established seismic monitoring frameworks, enhancing the capacity for real-time earthquake detection, catalog building, and early warning systems.
 
-## Features
+## ✨ Features
 
-- Seamless integration of the EQCCT deep learning phase picker into SeisComP for real-time seismic monitoring.
-- Utilizes Compact Convolutional Transformer (CCT) architecture combining convolutional layers and transformer encoders to extract robust time-series features from waveform data.
-- Supports simultaneous execution of multiple independent processing pipelines within a single instance, enabling differentiated operational workflows.
-- Highly configurable through user-defined station/channel lists, model selection, probability thresholds, and processing frequencies.
-- Real-time phase picking with latencies typically below 60 seconds after phase arrival, significantly outperforming conventional playback-based methods.
-- Optimized parallelization framework allowing efficient resource usage on computationally constrained systems.
-- Designed to operate on regional and dense seismic networks with mixed sensor types and variable data quality.
-- Full compatibility with EQCCT pretrained models, including models trained on global datasets (e.g., STEAD) and regional datasets (e.g., TexNet).
-- Facilitates integration into cataloging, early warning, and rapid response systems through standard SeisComP messaging groups.
-- Reduces manual intervention by improving phase pick reliability in noisy or complex signal environments.
+- ✅ Seamless integration of the **EQCCT** deep learning phase picker into **SeisComP** for real-time seismic monitoring.
+- 🧠 Utilizes **Compact Convolutional Transformer (CCT)** architecture, combining convolutional layers and transformer encoders to extract robust time-series features from waveform data.
+- 🔄 Supports **simultaneous execution** of multiple independent processing pipelines within a single instance, enabling differentiated operational workflows.
+- ⚙️ **Highly configurable** via user-defined station/channel lists, model selection, probability thresholds, and processing frequencies.
+- ⏱️ **Real-time phase picking** with latencies typically below **60 seconds** after phase arrival — significantly faster than playback-based methods.
+- 🧵 Optimized **parallelization framework** for efficient resource usage on computationally constrained systems.
+- 🌐 Designed to operate on **regional and dense seismic networks** with mixed sensor types and varying data quality.
+- 📦 Fully compatible with **EQCCT pretrained models**, including those trained on global datasets (e.g., **STEAD**) and regional datasets (e.g., **TexNet**).
+- 🛰️ Facilitates integration into **cataloging, early warning, and rapid response systems** via standard SeisComP messaging groups.
+- 🤖 Reduces manual intervention by improving phase pick **reliability in noisy or complex signal environments**.
+
 
 ## Installation
 
-### Prerequisites
+## 🛠️ Prerequisites
 
-The following software must be installed and properly configured prior to installing and executing this module:
+Before installing and running this module, ensure the following components are properly installed and configured:
 
-1️⃣ SeisComP System
-SeisComP (required)
+---
 
-Version: ≥ 4.0.0 (strongly recommended: ≥ 6.0.0)
+### 1️⃣ SeisComP System
 
-The software is fully compatible with SeisComP releases starting from version 4.0.0. Versions 6.0.0 and higher are recommended for optimal stability and performance.
+- **Required**: [SeisComP](https://www.seiscomp.de/)
+- **Minimum version**: `4.0.0`  
+- **Recommended**: `6.0.0` or higher for improved stability and performance.
 
-2️⃣ Operating System
-Linux (validated on Ubuntu 22.04 LTS)
+> ✅ Fully compatible with SeisComP releases ≥ 4.0.0
 
-3️⃣ Programming Language
-Python ≥ 3.10
-Note: Python versions prior to 3.10 (e.g., 3.6) are not supported due to incompatibilities with the ray library.
+---
 
-4️⃣ Python Packages
-The following Python packages are required:
+### 2️⃣ Operating System
 
+- **Tested on**: `Linux`  
+- **Validated on**: `Ubuntu 22.04 LTS`
+
+---
+
+### 3️⃣ Programming Language
+
+- **Python ≥ 3.10**
+
+> ⚠️ Python versions prior to 3.10 (e.g., 3.6) are **not supported** due to incompatibilities with the `ray` library.
+
+---
+
+### 4️⃣ Required Python Packages
+
+Ensure the following Python packages are installed:
+
+```bash
 ray
-
-numpy==1.26.4
-Note: Versions >= 2.0 may lead to compatibility issues with SeisComP.
-
+numpy==1.26.4     # ⚠️ Versions ≥ 2.0 may cause compatibility issues with SeisComP
 pandas
-
 obspy
-
 tensorflow
-
 silence_tensorflow
+```
 
-It is strongly recommended to install these packages inside a dedicated virtual environment (e.g., Conda) to ensure compatibility.
+> 💡 **Tip**: It is strongly recommended to install these packages inside a dedicated virtual environment (e.g., Conda) to avoid dependency conflicts.
 
-Predictor Installation
+---
 
-The predictor module must be installed after configuring all prerequisites. The installation procedure depends on whether a virtual environment is being used.
+## 📦 Predictor Installation
 
-➔ If NOT using a virtual environment:
+The `sceqcct-predicctor` module must be installed **after** all prerequisites have been configured. The installation procedure depends on whether a virtual environment is being used.
 
+---
+
+### ➤ If **NOT** using a virtual environment:
+
+```bash
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
-
 pip3 install -e .
+```
 
-➔ If using a Conda or other virtual environment:
+---
 
- - Activate your environment
+### ➤ If using a **Conda or other virtual environment**:
 
-conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
+1. **Activate your environment**  
+   _(Replace `sceqcct` with your actual environment name)_
 
- - Navigate to the predictor directory
+   ```bash
+   conda activate sceqcct
+   ```
 
-cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+2. **Navigate to the predictor directory**
 
- - Install the predictor module
+   ```bash
+   cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+   ```
 
-pip install -e .
+3. **Install the predictor module**
 
-Note: The installation must be performed within the activated environment to ensure that dependencies are correctly registered.
+   ```bash
+   pip install -e .
+   ```
 
-### Installation Steps
+> 🔒 **Note**: Installation must be performed *within the activated environment* to ensure all dependencies are correctly registered.
+
+
+## 🚀 Installation Steps
 
 Follow the steps below to fully install and configure the software:
 
-Step 1: Install SeisComP
+---
+
+### 🧱 Step 1: Install SeisComP
 
 The SeisComP system must be installed prior to installing this module.
 
-Download and install SeisComP version ≥ 4.0.0 (strongly recommended: version ≥ 6.0.0) following the official installation instructions:
+- **Minimum required version**: `4.0.0`  
+- **Strongly recommended**: `6.0.0` or higher
 
-https://docs.seiscomp.de/
+📘 Follow the official installation instructions:  
+[https://docs.seiscomp.de/](https://docs.seiscomp.de/)
 
-Verify that SeisComP is properly installed and configured in your system.
+✅ Once installed, verify that SeisComP is properly configured and accessible in your environment.
 
-Step 2: Clone the Repository
+---
+
+### 📥 Step 2: Clone the Repository
 
 Clone the project repository into any local directory:
 
+```bash
 git clone https://github.austin.utexas.edu/texnet/eqcct-dev.git
+```
 
-(Replace with the actual repository URL when publicly available.)
+> 📝 Replace the URL with the public repository link when available.
 
-Step 3: Deploy the Code into SeisComP Installation Directory
+---
 
-Copy all necessary files into your SeisComP installation using rsync to preserve the directory structure:
+### 🗂️ Step 3: Deploy the Code into SeisComP Installation Directory
 
+Copy all necessary files into your SeisComP installation using `rsync` to preserve the directory structure:
+
+```bash
 rsync -av /path/to/your-cloned-repository/ /path/to/your-seiscomp-installation/
+```
 
-Replace /path/to/your-cloned-repository/ with the absolute path of your cloned repository.
+- Replace `/path/to/your-cloned-repository/` with the absolute path to your cloned repository.
+- Replace `/path/to/your-seiscomp-installation/` with your SeisComP root (typically `$SEISCOMP_ROOT/`).
 
-Replace /path/to/your-seiscomp-installation/ with the root directory of your SeisComP installation (typically $SEISCOMP_ROOT/).
+> ⚠️ This step integrates the module into the SeisComP environment, preserving file structure and permissions.
 
-⚠ This step will integrate the new module into the SeisComP environment while preserving permissions and directory structure.
+---
 
-Step 4: Install Python Dependencies
-It is strongly recommended to install all dependencies inside a dedicated Conda environment to ensure full compatibility.
+### 🐍 Step 4: Install Python Dependencies
 
- - Create a new environment (optional)
+It is **strongly recommended** to use a dedicated Conda environment for installing dependencies.
 
-conda create -n sceqcct python=3.10
+1. **Create a new environment (optional)**
 
- - Activate the environment
+   ```bash
+   conda create -n sceqcct python=3.10
+   ```
 
-conda activate sceqcct
+2. **Activate the environment**
 
- - Install required packages
+   ```bash
+   conda activate sceqcct
+   ```
 
-pip install ray
+3. **Install required packages**
 
-pip install numpy==1.26.4
+   ```bash
+   pip install ray
+   pip install numpy==1.26.4      # ⚠️ Avoid numpy ≥ 2.0 to maintain compatibility
+   pip install pandas
+   pip install obspy
+   pip install tensorflow
+   pip install silence_tensorflow
+   ```
 
-pip install pandas
+---
 
-pip install obspy
+### 📦 Step 5: Install Predictor Module
 
-pip install tensorflow
+The `sceqcct-predicctor` component must be installed **after all dependencies** have been configured.
 
-pip install silence_tensorflow
+---
 
-Step 5: Install Predictor Module
+#### ➤ If **NOT** using a virtual environment:
 
-The predictor component must be installed manually after configuring all dependencies. The procedure differs slightly depending on whether you are using a virtual environment:
-
-➔ If NOT using a virtual environment:
-
+```bash
 cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
-
 pip3 install -e .
+```
 
-➔ If using a Conda or other virtual environment:
+---
 
- - Activate your environment
+#### ➤ If using a **Conda or other virtual environment**:
 
-conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
+1. **Activate your environment**
 
- - Navigate to the predictor directory
+   ```bash
+   conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
+   ```
 
-cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+2. **Navigate to the predictor directory**
 
- - Install the predictor module
-pip install -e .
+   ```bash
+   cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+   ```
+
+3. **Install the predictor module**
+
+   ```bash
+   pip install -e .
+   ```
+
+> 🔒 **Note**: Make sure to install the module *within* the activated environment to ensure proper linking of dependencies.
