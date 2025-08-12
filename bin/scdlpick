@@ -283,7 +283,7 @@ class sceqcct(StreamApplication):
                     df_list.append(df)
                     logging.debug(f"Reading filter file {profile['filtersFile']}")
                 except Exception as e:
-                    logging.error(f"Error leyendo {profile['filtersFile']}: {e}")
+                    logging.error(f"Error reading {profile['filtersFile']}: {e}")
         self.df_filters = pd.concat(df_list, ignore_index=True) if df_list else None
 
         self.params = {
