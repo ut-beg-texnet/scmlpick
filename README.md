@@ -1,6 +1,6 @@
-# sceqcct
+# scmlpick
 
-**sceqcct** is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
+**scmlpick** is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
 
 ## Table of Contents
 
@@ -17,13 +17,13 @@
 
 ## Project Description
 
-The sceqcct module implements a real-time seismic phase picking solution that integrates deep learning-based detection into operational seismic monitoring workflows. It leverages the EQCCT algorithm — a model based on the Compact Convolutional Transformer architecture — to perform robust and efficient phase picking directly within the SeisComP environment.
+The scmlpick module implements a real-time seismic phase picking solution that integrates deep learning-based detection into operational seismic monitoring workflows. It leverages the EQCCT algorithm — a model based on the Compact Convolutional Transformer architecture — to perform robust and efficient phase picking directly within the SeisComP environment.
 
 The scientific motivation for this development arises from the increasing need to reduce latency and improve pick accuracy in real-time earthquake monitoring systems, particularly for dense regional seismic networks operating under computational constraints. Traditional phase picking methods often struggle with noisy environments or require manual intervention, limiting their applicability for automated, near-real-time applications.
 
-By embedding the EQCCT model into SeisComP, sceqcct allows near-real-time generation of high-quality phase picks with delays typically under 60 seconds after the actual phase arrival, representing a substantial improvement compared to conventional playback-based approaches that can introduce latencies of several minutes. The system has been specifically designed to support operational requirements of networks like TexNet (Texas Seismological Network), where timely detection is critical for rapid response and seismic hazard assessment in areas of induced and natural seismicity.
+By embedding the EQCCT model into SeisComP, scmlpick allows near-real-time generation of high-quality phase picks with delays typically under 60 seconds after the actual phase arrival, representing a substantial improvement compared to conventional playback-based approaches that can introduce latencies of several minutes. The system has been specifically designed to support operational requirements of networks like TexNet (Texas Seismological Network), where timely detection is critical for rapid response and seismic hazard assessment in areas of induced and natural seismicity.
 
-The sceqcct module supports multiple pipelines within a single execution, enabling independent processing streams for diverse operational needs while optimizing resource utilization through parallelization strategies. The architecture is highly configurable, allowing customization of station/channel subsets, EQCCT model parameters, probability thresholds, and processing intervals.
+The scmlpick module supports multiple pipelines within a single execution, enabling independent processing streams for diverse operational needs while optimizing resource utilization through parallelization strategies. The architecture is highly configurable, allowing customization of station/channel subsets, EQCCT model parameters, probability thresholds, and processing intervals.
 
 This tool represents a significant step forward in integrating state-of-the-art machine learning techniques into established seismic monitoring frameworks, enhancing the capacity for real-time earthquake detection, catalog building, and early warning systems.
 
@@ -93,14 +93,14 @@ silence_tensorflow
 
 ## Predictor Installation
 
-The `sceqcct-predicctor` module must be installed **after** all prerequisites have been configured. The installation procedure depends on whether a virtual environment is being used.
+The `scmlpick-predicctor` module must be installed **after** all prerequisites have been configured. The installation procedure depends on whether a virtual environment is being used.
 
 ---
 
 ### ➤ If **NOT** using a virtual environment:
 
 ```bash
-cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
 pip3 install -e .
 ```
 
@@ -109,16 +109,16 @@ pip3 install -e .
 ### ➤ If using a **Conda or other virtual environment**:
 
 1. **Activate your environment**  
-   _(Replace `sceqcct` with your actual environment name)_
+   _(Replace `scmlpick` with your actual environment name)_
 
    ```bash
-   conda activate sceqcct
+   conda activate scmlpick
    ```
 
 2. **Navigate to the predictor directory**
 
    ```bash
-   cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+   cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
    ```
 
 3. **Install the predictor module**
@@ -184,13 +184,13 @@ It is **strongly recommended** to use a dedicated Conda environment for installi
 1. **Create a new environment (optional)**
 
    ```bash
-   conda create -n sceqcct python=3.10
+   conda create -n scmlpick python=3.10
    ```
 
 2. **Activate the environment**
 
    ```bash
-   conda activate sceqcct
+   conda activate scmlpick
    ```
 
 3. **Install required packages**
@@ -208,14 +208,14 @@ It is **strongly recommended** to use a dedicated Conda environment for installi
 
 ###  Step 5: Install Predictor Module
 
-The `sceqcct-predicctor` component must be installed **after all dependencies** have been configured.
+The `scmlpick-predicctor` component must be installed **after all dependencies** have been configured.
 
 ---
 
 #### ➤ If **NOT** using a virtual environment:
 
 ```bash
-cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
 pip3 install -e .
 ```
 
@@ -226,13 +226,13 @@ pip3 install -e .
 1. **Activate your environment**
 
    ```bash
-   conda activate sceqcct  # Replace 'sceqcct' with your actual environment name
+   conda activate scmlpick  # Replace 'scmlpick' with your actual environment name
    ```
 
 2. **Navigate to the predictor directory**
 
    ```bash
-   cd $SEISCOMP_ROOT/share/sceqcct/tools/sceqcct-predicctor
+   cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
    ```
 
 3. **Install the predictor module**
