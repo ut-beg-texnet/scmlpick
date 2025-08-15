@@ -21,10 +21,6 @@ from pathlib import Path
 from seiscomp.system import Environment
 import multiprocessing as mp
 from multiprocessing import Value
-#from multiprocessing import Pool
-#share_path = os.path.join(Environment.Instance().shareDir(), "sceqcct/tools")
-#sys.path.append(share_path)
-#from predictor import mseed_predictor
 from predictor import mseed_predictor
 import fnmatch
 import psutil
@@ -33,21 +29,15 @@ import queue
 
 # import main_picks as picks2xml
 
-class sceqcct(StreamApplication):
+class scmlpick(StreamApplication):
     def __init__(self):
         StreamApplication.__init__(self, len(sys.argv), sys.argv)
         self.setDatabaseEnabled(True, True)
         self.setPrimaryMessagingGroup(Protocol.LISTENER_GROUP)
         self.setMessagingEnabled(True)
-        # self.setPrimaryMessagingGroup("PICKEQCCT")
-        # self.addMessagingSubscription("PICK")
         self.setLoadInventoryEnabled(True)
 
         self.ei = Environment.Instance()
-        # share_path = os.path.join(self.ei.shareDir(), "sceqcct/tools")
-        # # share_path = os.path.abspath("../share/sceqcct/tools")
-        # sys.path.append(share_path)
-        # self.predictor = __import__('predictor')
         self.initStreams = []
         self.streams = []
         self.stream = Stream()
@@ -257,10 +247,6 @@ class sceqcct(StreamApplication):
 
         logging.info("Starting time %s " % self.now)
         logging.info("Starting time plus start latency %s " % self.startTime)
-        # predictorPath = os.path.join(self.ei.shareDir(), "sceqcct/tools")
-        # Creating pool for multiprocessing 
-        # pool_size = 4 # New cfg file parameter
-        # self.pool = Pool(processes=pool_size)
 
         # Start a thread to monitor the results without blocking the main process
         #self.monitorThread = threading.Thread(target=self.monitorTasks, args=(self.tasks_ids,))
@@ -331,7 +317,7 @@ class sceqcct(StreamApplication):
     def worker_loop(self, worker_id, station_list, input_queue, result_queue, global_staSend_counts, global_staSet_counts):
         """Loop executed by each worker process."""
 
-        log_file = f"/home/seiscomp/.seiscomp/log/sceqcct/worker_{worker_id}.log"
+        log_file = os.path.join(self.ei.logDir(), f"scmlpick/worker_{worker_id}.log")
 
         rotating_handler = RotatingFileHandler(
             log_file, maxBytes=5 * 1024 * 1024, backupCount=3
@@ -1132,9 +1118,7 @@ class sceqcct(StreamApplication):
         #     self.global_staSet_count.value = 0
 
         # Run EQCCT picker
-        # self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-        #self.tasks_ids.append(sceqcct.run_picker.remote(startMinute,endMinute,self.oneMinuteStream,params))
-        self.task_queue.put(sceqcct.run_picker.remote(startMinute, endMinute,oneMinuteStream,params))
+        self.task_queue.put(scmlpick.run_picker.remote(startMinute, endMinute,oneMinuteStream,params))
         self.log_queue_size()
         logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
         logging.info(f"The main process continues to generate and launch tasks.")
@@ -1165,15 +1149,7 @@ class sceqcct(StreamApplication):
     @staticmethod
     @ray.remote
     def run_picker(start_time,end_time,stream,params):
-        
-        # Create working dirs 
-        #Path(os.path.join(self.ei.shareDir(), "sceqcct/results/picks")).mkdir(exist_ok=True, parents=True)
-        #Path(os.path.join(self.ei.shareDir(), "sceqcct/results/logs/picker")).mkdir(exist_ok=True, parents=True)
-        #pathResutls = os.path.join(self.ei.shareDir(), "sceqcct/results")
-
-        # Load EQCCT model                                        
-        # model = self.predictor.load_model(self.eqcct_Pmodel, self.eqcct_Smodel, f"{pathResutls}/model.log")
-
+       
         # Get picker tasks
         start_time = UTCDateTime(start_time)
         end_time = UTCDateTime(end_time)
@@ -1222,7 +1198,7 @@ class sceqcct(StreamApplication):
 
         # Run picker
         for task in tasks:
-            picks = sceqcct.picker(task,stream,params)
+            picks = scmlpick.picker(task,stream,params)
 
         return picks
 
@@ -1283,19 +1259,12 @@ class sceqcct(StreamApplication):
     def picker(task,stream,params):
 
         picks = None
-        #eqcctPath = os.path.join(params['share_path'], "sceqcct/tools")
-        ## share_path = os.path.abspath("../share/sceqcct/tools")
-        #sys.path.append(eqcctPath)
-        #predictor = __import__('predictor')
 
         pos, starttime, endtime, stations = task
         # begin = starttime.strftime(format="%Y%m%dT%H%M%SZ")
         # end = endtime.strftime(format="%Y%m%dT%H%M%SZ")
 
-        #log_file = os.path.join(self.ei.shareDir(), f"sceqcct/results/logs/picker/{begin}_{end}.log")
-        #logging.info(f"[{datetime.now()}] Running EQCCT picker {pos}. Log file: {log_file}")
-
-        #output_eqcct = os.path.join(self.ei.shareDir(), f"sceqcct/results/eqcct/{begin}_{end}")
+        #output_eqcct = os.path.join(self.ei.shareDir(), f"scmlpick/results/eqcct/{begin}_{end}")
         
         picks = mseed_predictor(stream = stream,
                         filterShift    = params['filterShift'],
@@ -1578,7 +1547,7 @@ class sceqcct(StreamApplication):
                 # else:
                     # org = self.changeOrigStatus(org,self.FalseOrgEvalStat)
             else:
-                logging.debug("Author %s not in sceqcct profile %s" %(author,profile["name"]))
+                logging.debug("Author %s not in scmlpick profile %s" %(author,profile["name"]))
             
     def addObject(self, parentID, object):
         """
@@ -1619,12 +1588,12 @@ def set_cpu_affinity(cores):
 if __name__ == '__main__':
     import sys
     script_name = os.path.basename(sys.argv[0])
+    num_cores = os.cpu_count() - 1
     core_mappings = {
-#        "sceqcctMID": list(range(0, 30)),
-#        "sceqcctMIDEF": list(range(0, 40)),
-        "sceqcctALL": list(range(4, 46)),
+        # "scmlpick": list(range(4, 46))
+        "scmlpick": list(range(num_cores))
     }
     listCores = core_mappings.get(script_name, list(range(0, 4)))
     set_cpu_affinity(listCores)
-    app = sceqcct()
+    app = scmlpick()
     sys.exit(app())
