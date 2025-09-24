@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>scqcalert &mdash; TexNet: SeisComP Addons</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=86f27845" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=eafc0fe6" />
+
+  
+  
+        <script src="../_static/jquery.js?v=8dae8fb0"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="sceewv" href="sceewv.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            TexNet
+          </a>
+              <div class="version">
+                Generated on 2025/09/23
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="scmlpick.html">scmlpick</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sceewv.html">sceewv</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">scqcalert</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">SCQCALERT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#alert-types">Alert types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#outputs">Outputs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#email-alerts">Email alerts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#database-with-alerts">Database with alerts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dashboard">Dashboard</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Repositories</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/ut-beg-texnet/scmlpick.git">scmlpick git</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://gitlab.seismo.ethz.ch/SED-EEW/sceewv.git">sceewv git</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://gitlab.seismo.ethz.ch/SED-EEW/scqcalert.git">scqcalert git</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">TexNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">scqcalert</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/apps/scqcalert.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="scqcalert">
+<span id="id1"></span><h1>scqcalert<a class="headerlink" href="#scqcalert" title="Link to this heading"></a></h1>
+<section id="id2">
+<span id="id3"></span><h2>SCQCALERT<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p><em>scqcalert</em> is a tool that, based on the evaluation of some parameters, allows monitoring and quality control of station acquisition, signal quality, and the automatic processing system.</p>
+<blockquote>
+<div><div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><em>scqcalert</em> uses a system of <strong>alerts</strong> produced after evaluating two types of parameters; first, those already calculated by other active tools such as the SeisComP module <em>scqc</em> and second, new parameters that are not available in the system.</p>
+</div>
+</div></blockquote>
+<section id="alert-types">
+<h3>Alert types<a class="headerlink" href="#alert-types" title="Link to this heading"></a></h3>
+<p><strong>Imported from scqc</strong></p>
+<p>scqcalert uses a direct connection to the messaging system and collects all alerts calculated and sent by the <strong>scqc</strong> module. Thresholds for sending these alerts and the list of parameters involved must be configured directly in the .cfg file and following the documentation: ref: <cite>scqc</cite>. Currently, the following parameters are available:</p>
+<ul class="simple">
+<li><p>real-time data availability [%]</p></li>
+<li><p>delay [s]</p></li>
+<li><p>gaps (conteo [counts], intervalo [s], duración [s])</p></li>
+<li><p>latencia [s]</p></li>
+<li><p>offset [counts]</p></li>
+<li><p>overlaps (count [counts], interval [s], length [s])</p></li>
+<li><p>rms [counts]</p></li>
+<li><p>spikes (count [counts], interval [s], amplitude [counts])</p></li>
+<li><p>timing [%]</p></li>
+</ul>
+<p><strong>Calculated with scqcalert</strong></p>
+<p>new custom alerts:</p>
+<ul class="simple">
+<li><p>Trigger rate (triggers): Count picks in a time range (1 day by default)  using a connection with the messaging groups configured for ref: <cite>scautopick</cite> and its aliases. If picks exceed a threshold (configurable), an alert will be sent.</p></li>
+<li><p>Pick residual (pickres): Evaluate pick time residuals (including non-preferred origins) using a connection with the messaging groups configured for localization modules ref: <cite>scautoloc</cite>. If residual exceeds a threshold (configurable), an alert will be sent.</p></li>
+<li><p>Magnitude residual (magres): Evaluate magnitude residuals (including non-preferred magnitudes) using a connection with the messaging groups configured for magnitude calculation modules ref: <cite>scmag</cite>. If residual exceeds a threshold (configurable), an alert will be sent.</p></li>
+<li><p>Noisy station alerts using PSD (developing): Analyze the noise of each station using a PSDs database with ObsPy npz files. Alert will send when noise is outside of configurable thresholds (-200 and -60 dB by default). In addition, a detection system was implemented following the STA / LTA logic where the ratio between the PSDs value means calculated with the last N days (configurable) against the estimated with the last hour is compared with a threshold  (configurable) to send alerts.</p></li>
+</ul>
+<ul class="simple">
+<li><p>Archieved data availability (developing): The module queries the fdsnws “availability” service to check the availability of data stored in the archive for each station. If the availability percentage is lower than a configurable threshold, an alert will be sent.</p></li>
+<li><p>Flat alerts from scqc parameters (developing): In addition to the alerts sent by scqc generated by sudden changes in the parameters shown in section 4.2. Scqcalert includes configurable thresholds to send alerts if a parameter report values below or above these. For example: delay &lt; 0 seconds.</p></li>
+</ul>
+</section>
+<section id="outputs">
+<h3>Outputs<a class="headerlink" href="#outputs" title="Link to this heading"></a></h3>
+<p>The outputs of this module are addressed to be used by the networks’ technical staff to evaluate quality parameters in data acquisition, seismic noise, and automatic processing.</p>
+</section>
+<section id="email-alerts">
+<h3>Email alerts<a class="headerlink" href="#email-alerts" title="Link to this heading"></a></h3>
+<p>An email including all alerts collected from scqc and produced by scqcalert will be automatically sent to a customizable mailing list every reporting period (by default 24 hours). This email includes a table grouping the alerts for all the channels of each instrument. In the column `` mseedid ‘’, the name of the station is presented without including the component. The `` Alerts ‘’ column includes the parameter’s name, the worst value of the collected alerts, and additional information, which could be the number of alerts and/or relevant configuration values ​.</p>
+<p>The table is sorted by the network in descending order, starting with the network with the highest number of instruments with alerts. Instruments for each network are sorted in descending order, starting with the instrument with the most types of alerts. Here is an example of the table format sent automatically by email:</p>
+<figure class="align-center" id="id4">
+<span id="fig-email"></span><a class="reference internal image-reference" href="../_images/email.png"><img alt="../_images/email.png" src="../_images/email.png" style="width: 16cm;" /></a>
+<figcaption>
+<p><span class="caption-text">Email send by scqcalert</span><a class="headerlink" href="#id4" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="database-with-alerts">
+<h3>Database with alerts<a class="headerlink" href="#database-with-alerts" title="Link to this heading"></a></h3>
+<p>Alerts are stored in a database organized with the archive structure:
+.. code-block:: sh</p>
+<blockquote>
+<div><p>/year/network/station/channel.location/network.station.location.channel.year.day</p>
+</div></blockquote>
+<p>By default the database is stored in the path:
+.. code-block:: sh</p>
+<blockquote>
+<div><p>&#64;DATADIR&#64;/scqcalert/</p>
+</div></blockquote>
+<p>Files are stored in <em>JSON</em> format.</p>
+</section>
+<section id="dashboard">
+<h3>Dashboard<a class="headerlink" href="#dashboard" title="Link to this heading"></a></h3>
+<p>A dashboard that incorporates all the information provided by scqcalert is included to make easy quality control</p>
+<figure class="align-center" id="id5">
+<span id="fig1-dashboard"></span><a class="reference internal image-reference" href="../_images/dash_1.png"><img alt="../_images/dash_1.png" src="../_images/dash_1.png" style="width: 16cm;" /></a>
+<figcaption>
+<p><span class="caption-text">Drop-down menus included in the Dashboard: Left: the period in days. Center: parameter to analyze (metric). Right: Station sort order method.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>Drop-down menus available in the dashboard:</p>
+<ul>
+<li><p>Select Time (by default 10): It allows choosing from 1 to 30 days. Users can modify these periods in the cfg file, however, when selecting more than 30 days, the dashboard may take more than 5 seconds to read the information from the database and generate the plots.</p></li>
+<li><p>Select metric (by default “alert_types”):  Metric or type of alert to analyze. Allows choosing Parameters presented in the Alert types section of this document in addition to a metric called` “alert _types” which stores the number of alert types for each station. The user can modify the list of metrics in the cfg file.</p></li>
+<li><p>Select sort order (by default “default”): Select the sort order of the stations in the plots. Currently, the following options are available:</p></li>
+<li><dl>
+<dt>default: Order in which the data was imported from the database with JSON files</dt><dd><ul class="simple">
+<li><p>net-sta: The stations are sorted by the network in descending order, starting with the network with the highest number of instruments with alerts. The instruments of each network are sorted in descending order, starting with the instrument with the highest number of types of alerts.</p></li>
+<li><p>total ascending: The stations are arranged in descending order, starting with the station with the highest number of accumulated alerts in the selected period.</p></li>
+<li><p>max ascending: The stations are arranged in descending order, starting with the station with the highest number of alerts in a reported period despite the accumulated value in the entire selected period.</p></li>
+<li><p>total descending: The stations are arranged in ascending order, starting with the station with the lowest number of accumulated alerts in the entire selected period.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To modify the selection of the drop-down menus “Select Time” and “Select metric”, please select the option “default” in the menu “Select sort order”. This is because ordering the stations must be done after extracting the information from the database. This clarification is just above the “Select sort order” menu.</p>
+</div>
+</dd>
+</dl>
+</li>
+</ul>
+<p>The heat map on the left presents the number of alerts per station and per day based on the metric and period selected from the drop-down menus. The horizontal axis shows the day, the vertical axis shows the station, and the color on the graph shows the number of alerts. Here are some comments about this graph:</p>
+<figure class="align-center">
+<a class="reference internal image-reference" href="../_images/dash_2.png"><img alt="../_images/dash_2.png" src="../_images/dash_2.png" style="width: 16cm;" /></a>
+</figure>
+<p>The heat map on the left presents the number of alerts per station and per day based on the metric and period selected from the drop-down menus. The horizontal axis shows the day, the vertical axis shows the station, and the color on the graph shows the number of alerts. Here are some comments about this graph:</p>
+<ul class="simple">
+<li><p>When selecting the metric “alert_types” the colors mean the number of types of alerts. When selecting any other metric, the colors mean the number of alerts of the selected metric.</p></li>
+<li><p>Only stations with alerts stored by scqcalert are included</p></li>
+<li><p>The graph will be reordered according to the selection in the “Select sort order ‘’ drop-down menu.</p></li>
+<li><p>The graph is interactive with dynamic options shown in the upper right corner.</p></li>
+<li><p>Hovering the pointer over any cell in the graph will show associated information with the cell: station, day, number of alerts, and types of alerts (dark gray box in the Figure).</p></li>
+</ul>
+<p>The histogram on the right shows the number of accumulated alerts per station for the metric and period selected from the drop-down menus. The horizontal axis indicates the number of alerts, and the vertical axis indicates the station name. Here are some comments about this graph:</p>
+<ul class="simple">
+<li><p>When selecting the metric “alert_types” the horizontal axis shows the number of accumulated alert types. When selecting any other metric, the horizontal axis indicates the number of accumulated alerts of the selected type.</p></li>
+<li><p>Only stations with alerts stored by scqcalert are included</p></li>
+<li><p>The graph will be reordered according to the selection in the “Select sort order ‘’ drop-down menu.</p></li>
+<li><p>The graph is interactive with dynamic options shown in the upper right corner.</p></li>
+<li><p>Each histogram bar is divided by cells representing each day during the reporting period.</p></li>
+<li><p>Hovering the pointer over any cell in the graph will show the information associated with this cell: station, number of alerts/types of alerts, and day (blue box in the Figure).</p></li>
+</ul>
+<section id="configuration">
+<h4>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/defaults/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/defaults/scqcalert.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/scqcalert.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">~/.seiscomp/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">~/.seiscomp/scqcalert.cfg</span></code></div>
+</div>
+<p>scqcalert inherits <a class="reference external" href="https://docs.gempa.de/seiscomp/current/apps/global.html">global options</a>.</p>
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-APPSpath">
+<span class="sig-name descname"><span class="pre">APPSpath</span></span><a class="headerlink" href="#confval-APPSpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to save/update config for dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/scqcalert/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-jsonPath">
+<span class="sig-name descname"><span class="pre">jsonPath</span></span><a class="headerlink" href="#confval-jsonPath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path of JSON database to use in dashbaord
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/scqcalert/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcFreqStore">
+<span class="sig-name descname"><span class="pre">qcFreqStore</span></span><a class="headerlink" href="#confval-qcFreqStore" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Unit: <em>minutes</em></p>
+<p>Interval in minutes to send and stored alerts and notifications.
+Default is <code class="docutils literal notranslate"><span class="pre">1435</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcAlertDir">
+<span class="sig-name descname"><span class="pre">qcAlertDir</span></span><a class="headerlink" href="#confval-qcAlertDir" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to store email content, json database and config files.
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/scqcalert</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcMsgtype">
+<span class="sig-name descname"><span class="pre">qcMsgtype</span></span><a class="headerlink" href="#confval-qcMsgtype" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Message type imported from scqc to send new messages to scqcalert (report/alert).
+Default is <code class="docutils literal notranslate"><span class="pre">alert</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-listMsg">
+<span class="sig-name descname"><span class="pre">listMsg</span></span><a class="headerlink" href="#confval-listMsg" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>Messaging groups to connect. (Not working, to change messaging groups go to source code)
+Default is <code class="docutils literal notranslate"><span class="pre">[QC,CONFIG,INVENTORY,PICK,MAGNITUDE,LOCATION]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-netWhitelist">
+<span class="sig-name descname"><span class="pre">netWhitelist</span></span><a class="headerlink" href="#confval-netWhitelist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List with networks allowed to process
+Default is <code class="docutils literal notranslate"><span class="pre">[MX,GI,SV,SN,NU,TC,OV,AM]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-netBlacklist">
+<span class="sig-name descname"><span class="pre">netBlacklist</span></span><a class="headerlink" href="#confval-netBlacklist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List with networks not allowed to process</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-locBlacklist">
+<span class="sig-name descname"><span class="pre">locBlacklist</span></span><a class="headerlink" href="#confval-locBlacklist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List with location codes not allowed to process
+Default is <code class="docutils literal notranslate"><span class="pre">99</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-chanWhitelist">
+<span class="sig-name descname"><span class="pre">chanWhitelist</span></span><a class="headerlink" href="#confval-chanWhitelist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List with channels allowed to process
+Default is <code class="docutils literal notranslate"><span class="pre">[HN,EN,SN,HH,EH,SH]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-chanBlacklist">
+<span class="sig-name descname"><span class="pre">chanBlacklist</span></span><a class="headerlink" href="#confval-chanBlacklist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List with channels not allowed to process</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-dbURIcmpuQC">
+<span class="sig-name descname"><span class="pre">dbURIcmpuQC</span></span><a class="headerlink" href="#confval-dbURIcmpuQC" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>db URI to query QC parameters when using --QCquery mode</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcMetNames">
+<span class="sig-name descname"><span class="pre">qcMetNames</span></span><a class="headerlink" href="#confval-qcMetNames" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>QC metric names to query when using --QCquery mode
+Default is <code class="docutils literal notranslate"><span class="pre">[delay,latency]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcMetThrs">
+<span class="sig-name descname"><span class="pre">qcMetThrs</span></span><a class="headerlink" href="#confval-qcMetThrs" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:double</em></p>
+<p>QC metric thresholds to send alerts when using --QCquery mode
+Default is <code class="docutils literal notranslate"><span class="pre">[5.0,5.0]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdDir">
+<span class="sig-name descname"><span class="pre">psdDir</span></span><a class="headerlink" href="#confval-psdDir" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path with npz files for psd evaluation</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-trig_max">
+<span class="sig-name descname"><span class="pre">trig_max</span></span><a class="headerlink" href="#confval-trig_max" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Maximum number of triggers
+Default is <code class="docutils literal notranslate"><span class="pre">30</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pickName">
+<span class="sig-name descname"><span class="pre">pickName</span></span><a class="headerlink" href="#confval-pickName" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>scautopick alias name to extract config values (trigOn)
+Default is <code class="docutils literal notranslate"><span class="pre">scautopick</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-mag_max">
+<span class="sig-name descname"><span class="pre">mag_max</span></span><a class="headerlink" href="#confval-mag_max" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum magnitude value
+Default is <code class="docutils literal notranslate"><span class="pre">8.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pick_res_max">
+<span class="sig-name descname"><span class="pre">pick_res_max</span></span><a class="headerlink" href="#confval-pick_res_max" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Unit: <em>seconds</em></p>
+<p>Maximum pick residual
+Default is <code class="docutils literal notranslate"><span class="pre">1.5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-dbURIcmpuDB">
+<span class="sig-name descname"><span class="pre">dbURIcmpuDB</span></span><a class="headerlink" href="#confval-dbURIcmpuDB" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>db URI to query arrivals and magnitudes when using --DBquery mode</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-arrRes">
+<span class="sig-name descname"><span class="pre">arrRes</span></span><a class="headerlink" href="#confval-arrRes" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum arrival residual to send alerts when using --DBquery mode</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-magRes">
+<span class="sig-name descname"><span class="pre">magRes</span></span><a class="headerlink" href="#confval-magRes" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum magnitude residual to send alerts when using --DBquery mode</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-qcMargin">
+<span class="sig-name descname"><span class="pre">qcMargin</span></span><a class="headerlink" href="#confval-qcMargin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Period in seconds to search for qc values (timing quality)
+Default is <code class="docutils literal notranslate"><span class="pre">86400</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-mag_res_max">
+<span class="sig-name descname"><span class="pre">mag_res_max</span></span><a class="headerlink" href="#confval-mag_res_max" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum magnitude residual
+Default is <code class="docutils literal notranslate"><span class="pre">1.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-min_res_sample">
+<span class="sig-name descname"><span class="pre">min_res_sample</span></span><a class="headerlink" href="#confval-min_res_sample" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Minimum number of pick and magnitude residuals
+Default is <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fdsnwsResp">
+<span class="sig-name descname"><span class="pre">fdsnwsResp</span></span><a class="headerlink" href="#confval-fdsnwsResp" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>fdsnws service to import response
+Default is <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdPeriods">
+<span class="sig-name descname"><span class="pre">psdPeriods</span></span><a class="headerlink" href="#confval-psdPeriods" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:double</em></p>
+<p>Unit: <em>seconds</em></p>
+<p>Periods to evaluate psd values
+Default is <code class="docutils literal notranslate"><span class="pre">[1,0.2,0.1,0.066]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdmin">
+<span class="sig-name descname"><span class="pre">psdmin</span></span><a class="headerlink" href="#confval-psdmin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Unit: <em>db</em></p>
+<p>Minimum PSD value
+Default is <code class="docutils literal notranslate"><span class="pre">-130.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdmax">
+<span class="sig-name descname"><span class="pre">psdmax</span></span><a class="headerlink" href="#confval-psdmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Unit: <em>db</em></p>
+<p>Mimimum ratio STA/LTA logic to evaluate changes on PSDs
+Default is <code class="docutils literal notranslate"><span class="pre">-90.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdslmax">
+<span class="sig-name descname"><span class="pre">psdslmax</span></span><a class="headerlink" href="#confval-psdslmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum ratio STA/LTA logic to evaluate changes on PSDs
+Default is <code class="docutils literal notranslate"><span class="pre">1.04</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psd_numdays">
+<span class="sig-name descname"><span class="pre">psd_numdays</span></span><a class="headerlink" href="#confval-psd_numdays" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Number of days to calculate LTA using PSDs average values
+Default is <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdSource">
+<span class="sig-name descname"><span class="pre">psdSource</span></span><a class="headerlink" href="#confval-psdSource" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Source of PSD files in .npz format. Only url or file available.
+Default is <code class="docutils literal notranslate"><span class="pre">file</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdNets">
+<span class="sig-name descname"><span class="pre">psdNets</span></span><a class="headerlink" href="#confval-psdNets" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>Network codes to query PSD files when url set as psdSourse.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdUrl">
+<span class="sig-name descname"><span class="pre">psdUrl</span></span><a class="headerlink" href="#confval-psdUrl" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>URL to query PSD files when url set as psdSource</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-psdTempDir">
+<span class="sig-name descname"><span class="pre">psdTempDir</span></span><a class="headerlink" href="#confval-psdTempDir" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to save PSDs downloaded from url when url set as psdSourse.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-availThr">
+<span class="sig-name descname"><span class="pre">availThr</span></span><a class="headerlink" href="#confval-availThr" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Percentage threshold to send alert on SDS data available
+Default is <code class="docutils literal notranslate"><span class="pre">70</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-dbURIcmpuAVAIL">
+<span class="sig-name descname"><span class="pre">dbURIcmpuAVAIL</span></span><a class="headerlink" href="#confval-dbURIcmpuAVAIL" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>db URI to query availability information using --AVAILcomp mode</p>
+</dd></dl>
+
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sceewv.html" class="btn btn-neutral float-left" title="sceewv" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, TexNet.
+      <span class="lastupdated">Last updated on Sep 23, 2025.
+      </span></p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

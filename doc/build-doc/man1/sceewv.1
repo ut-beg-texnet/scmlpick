@@ -1,0 +1,699 @@
+.\" Man page generated from reStructuredText.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "SCEEWV" "1" "Sep 23, 2025" "Generated on 2025/09/23" "TexNet"
+.SH NAME
+sceewv \- TexNet Documentation
+.SH SCEEWV
+.sp
+\fIsceewv\fP is a tool to check, evaluate and analyze the performance of the
+Early Warning System. It reads information from the SeisComP system,
+store critical parameters in JSON databases, and creates dashboards that
+allow checking the performance interactively
+.SS SeisComp Module
+.sp
+\fIsceewv\fP reads event information including preferred and non\-preferred
+origins to create databases with the required information to check the early
+warning performance.
+\fIsceewv\fP also stores acceleration envelope values
+using the \fIsceewenv\fP module, store this information in a database and
+use it to produce products that allow a fast evaluation of the seismic
+data for specific earthquakes.
+.sp
+This module can be used in two ways:
+.INDENT 0.0
+.IP \(bu 2
+Real\-time: \fIsceewv\fP connects directly with the messaging system and listens for new/updated/removed objects related to  early warning processing.
+.IP \(bu 2
+Command\-line: \fIsceewv\fP queries the SeisComP database for a specific period looking for all required information to update the dashboard.
+.UNINDENT
+.sp
+To read and compute events information:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+$sceewv \-u usr \-\-query \-\-start \(dq%Y\-%m\-%d %H:%M:%S\(dq \-\-end \(dq%Y\-%m\-%d
+%H:%M:%S\(dq \-\-debug
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+To compute envelope information:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+$sceewv \-u usr \-\-envelope \-\-envstart \(dq%Y\-%m\-%d %H:%M:%S\(dq \-\-endstart
+\(dq%Y\-%m\-%d %H:%M:%S\(dq \-\-debugcode
+.EE
+.UNINDENT
+.UNINDENT
+.SS JSON Databases
+.sp
+All data is stored in two JSON databases stored by default in the
+default DATADIR of SeisComP.
+.sp
+The first database includes all information related to Events, Origins,
+Picks and Magnitudes and is organized following the next structure:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+@DATADIR/events/year/month/day/eventID
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+The second database includes acceleration envelope information for each
+station sorted by distance to the epicenter. This database is organized
+following the next structure:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+DATADIR@/event/year/month/day/eventID
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Files are stored in \fIJSON\fP format.
+.SS Events Dashboard
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+This dashboard includes the information stored in the events database
+and allows control quality of early warning results for a particular
+selection of events.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+To use this application, you must select the events to analyze. To
+select events, you must:
+* Use drop\-down menus at the top of the map on the left side to choose the period
+* Use the slider at the top of the map in the middle to choose the magnitude range.
+* Restrict the area to your interest region (configurable) using the check box at the top of the map on the right side.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+The map on the left side shows the selected events. The map shows
+events as circles. The event selected in the table is displayed with
+the biggest circle, and you can select an event if you click an event
+on the map. Circles could have three colors: black for true positives,
+yellow for false positives, and green for false negatives. At the
+bottom of the map, some relevant information is displayed. The map is
+interactive. It allows you to change the zoom (using the scroll) and to
+move the area (holding the left click). More interaction options could
+be activated using the menu in the upper right corner. Hovering the
+pointer over each circle on the map displays information (configurable)
+related to the event.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+The table with selected events is shown in the lower part of the right
+side of the events dashboard. The first two columns display information
+for the preferred origin. These columns could have a background color;
+yellow in case of a false positive, red in case of a false negative, or
+white for true positive events. Information regarding early warning
+solutions is shown from the third to the eighth column. The ninth
+column, called \(dqEEW\(dq indicates whether or not this information was sent
+to the early warning dissemination system such as EEWD, EEWBS, or the
+mobile application. The event selected in the table will be shown with
+a blue background and highlighted on the map (the biggest circle).
+Information can be sorted in descending order or ascending using the
+values of any column. The selection circle on the left side of each
+event allows you to select a single event to be analyzed with the event
+dashboard by pressing the link ”Go to selected event\(dq.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+In the upper part of the right side, you can select History to show the
+graph of delays for selected events. This plot shows in colored
+triangles the delay value corresponding to the arrival of the first 4
+phases (4th P) and the computation times for the previously configured
+types of magnitudes. A black line connects the delays of one event. The
+The 4th P delay is plotted below the zero line, but these are positive
+values. The yellow and red dotted lines show the false positives and
+false negatives. This graph is interactive. It allows you to modify the
+zoom (by selecting an area with the left click). Interaction options
+could be activated by hovering over the upper right corner. Data series
+can be deactivated or activated by pressing the name in the legend.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+At the top of the right side, you can select summary to display two
+graphs. On the left, is the histogram of delays in seconds for each
+intensity value. Intensities can be activated or deactivated by
+clicking on the legend. On the right, the plot shows the number of
+events T+, F+, and F\- of the selected events. Clicking on the
+categories T+ and F+ modifies the graph showing the number of events
+with FinDer, VS, or FinDer and VS for the selected category. Hovering
+the pointer over any classification will show the corresponding number
+of events.
+.SS Event Dashboard
+.sp
+This dashboard includes the information stored in the event database
+and allows control quality of early warning results for a particular
+event:
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+Events and event dashboards are all linked. To open the event dashboard from
+the events dashboard uses the white circle on the left of the table and
+pass the link at the bottom of the table called \(dqGo to selected
+event\(dq:
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+Dropdown menus to select EEW solutions and stations:
+.INDENT 0.0
+.IP \(bu 2
+Dropdown menu on the left with early warning solutions for the selected event. It is possible to select any solution that will modify the map, envelope plot, and performance plots content according to the selected solution.
+.IP \(bu 2
+Dropdown menu on the right with two options, \(dqall\(dq and \(dqused,\(dq means select all available stations or stations used by the chosen solution in the side dropdown menu. The map and envelope plot content will change according to the selected option.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B Using the data stored in the events and event JSON databases, the
+dashboard displays a map with all the early warning solutions:
+.UNINDENT
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+Below is a description for each object on the map:
+.INDENT 0.0
+.IP \(bu 2
+The stars represent the different locations. The black star is the preferred origin location, the yellow ones are all the locations associated with early warning solutions, and the green star symbolizes the EEW solution selected in the left dropdown menu at the top of the map.
+.IP \(bu 2
+The green circles with dashed lines show fixed values of delay between the time of computing the selected early warning solution and the time the S phase takes to arrive.
+.IP \(bu 2
+The green circles with solid lines represent intensity values reached for the selected early warning solution.
+.IP \(bu 2
+The black circles with dashed lines represent some fixed values of delay between the computing time of the preferred solution and the time the S phase takes to arrive.
+.IP \(bu 2
+The solid black circles represent intensity values achieved for the selected preferred solution.
+.IP \(bu 2
+The purple triangles show the location of the stations with accelerometers.
+.IP \(bu 2
+The green triangles show the location of stations with equipment other than accelerometers.
+.UNINDENT
+.sp
+Envelopes of acceleration are shown in a graph of distance versus time:
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+This graph shows a line for each station. On the Y axis the epicentral
+distances of the stations, and on the X axis, the UTC time. In colors,
+the acceleration values are presented in m/s2. The red vertical line
+shows the time of the selected early warning solution. In addition, the
+arrivals of the direct and refracted P and S waves are shown in gray
+dotted lines.
+.sp
+The main objectives of this graph are:
+.INDENT 0.0
+.IP \(bu 2
+Compare the time of the EEW solution with the theoretical and real arrival of the P and S waves.
+.IP \(bu 2
+To check the value of the accelerations measured at each station and the variation of acceleration for the same station according to the different arrivals of seismic waves.
+.IP \(bu 2
+Distribution regarding the hypocentral distance of the stations selected in the dropdown at the top of the map.
+.IP \(bu 2
+See other effects, such as energy attenuation increasing the hypocentral distance.
+.UNINDENT
+.sp
+Using the parametric data stored in the events database, the dashboard
+shows several graphs to monitor some important parameters computed
+during the process of locating and estimating the magnitudes by the
+early warning system:
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+The dashboard has four quality control diagrams:
+.INDENT 0.0
+.IP \(bu 2
+Magnitude: Shows the values of each type of early warning magnitude. It also displays the preferred magnitude value as a reference value.
+.IP \(bu 2
+Location: Shows the differences in km of the locations associated with EEW magnitudes versus preferred location.
+.IP \(bu 2
+Likelihood: Shows the likelihood values for each type of early warning magnitude.
+.IP \(bu 2
+Stations: The number of stations used to compute locations associated with early warning magnitude types. It also presents the number of stations used for the preferred location as a reference value.
+.UNINDENT
+.sp
+The green vertical lines in all diagrams indicate the values related to
+the EEW selected solution in the dropdown on the top of the map.
+.INDENT 0.0
+.INDENT 2.5
+[image]
+.UNINDENT
+.UNINDENT
+.sp
+In the top right corner, the button labeled menu unfolds a hidden side
+menu with links to the index and other dashboards. Below are options to
+select the event using the eventID or look for the event using the time
+and magnitude range.
+.SS Configuration
+.nf
+\fBetc/defaults/global.cfg\fP
+\fBetc/defaults/sceewv.cfg\fP
+\fBetc/global.cfg\fP
+\fBetc/sceewv.cfg\fP
+\fB~/.seiscomp/global.cfg\fP
+\fB~/.seiscomp/sceewv.cfg\fP
+.fi
+.sp
+.sp
+sceewv inherits \fI\%global options\fP\&.
+.INDENT 0.0
+.TP
+.B postProcFreq
+Type: \fIint\fP
+.sp
+Interval in minutes to compute envelopes and update events JSON database
+Default is \fB60\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B APPSpath
+Type: \fIpath\fP
+.sp
+Path to save/update config for all apps
+Default is \fB@DATADIR@/sceewv/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B JSONpath
+Type: \fIpath\fP
+.sp
+Path to save JSON database
+Default is \fB@DATADIR@/sceewv/events/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B fdTypes
+Type: \fIlist:String\fP
+.sp
+Types of magnitude FinDer allowed
+Default is \fB[Mfd,Mfdr,Mfdl]\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B alert
+Type: \fIbool\fP
+.sp
+If scqcalert dashboard available. alertpath required
+Default is \fBTrue\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B alertpath
+Type: \fIpath\fP
+.sp
+Path to scqcalert dashboard
+Default is \fB@DATADIR@/sceewv/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B host
+Type: \fIString\fP
+.sp
+Bind address of the server. \(dq0.0.0.0\(dq allows any interface to conect to this server
+Default is \fB0.0.0.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B port
+Type: \fIString\fP
+.sp
+Server port
+Default is \fB8050\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B mapboxtoken
+Type: \fIpath\fP
+.sp
+App key to use custom maps with mapbox
+Default is \fB@DATADIR@/sceewv/mapbox_token\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B extquery
+Type: \fIbool\fP
+.sp
+Use external catalog to evaluate events
+Default is \fBTrue\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B fdsnwsname
+Type: \fIString\fP
+.sp
+fdsnws service name to use for external catalog
+Default is \fBNEIC\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B agency
+Type: \fIString\fP
+.sp
+Agency name
+Default is \fBOVSICORI\-UNA\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B fdsnwsclient
+Type: \fIString\fP
+.sp
+Route to fdsnws service
+Default is \fBhttps://earthquake.usgs.gov/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B deltatime
+Type: \fIint\fP
+.sp
+Delta time in minutes to compare events against external catalog
+Default is \fB1\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B deltadist
+Type: \fIint\fP
+.sp
+Delta distance in degrees to compare events against external catalog
+Default is \fB1\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B magtypes
+Type: \fIlist:String\fP
+.sp
+EEW magnitude types allowed to show in events dashboard
+Default is \fB[MVS,Mfd,Mfdr,Mfdl]\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B latmin
+Type: \fIdouble\fP
+.sp
+Minimum latitude allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB5.5\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B latmax
+Type: \fIdouble\fP
+.sp
+Maximum latitude allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB19.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B lonmin
+Type: \fIdouble\fP
+.sp
+Minimum longitude allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB\-94.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B lonmax
+Type: \fIdouble\fP
+.sp
+Maximum longitude allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB\-81.5\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B latrmin
+Type: \fIdouble\fP
+.sp
+Minimum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB10.5\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B latrmax
+Type: \fIdouble\fP
+.sp
+Maximum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB14.6\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B lonrmin
+Type: \fIdouble\fP
+.sp
+Minimum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB\-90.5\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B lonrmax
+Type: \fIdouble\fP
+.sp
+Maximum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is \fB\-87.1\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B jsonpath
+Type: \fIpath\fP
+.sp
+Path to query events information
+Default is \fB@DATADIR@/sceewv/events/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B distint
+Type: \fIint\fP
+.sp
+Distance in km to compute intensity using allen 2012
+Default is \fB100\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B fpstatus
+Type: \fIbool\fP
+.sp
+Show FP delay information in the histogram events dashboard
+Default is \fBFalse\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B deltadays
+Type: \fIint\fP
+.sp
+Delta in days to select initial period to show in events dashboard
+Default is \fB30\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B minmag
+Type: \fIdouble\fP
+.sp
+Minumum magnitude use in the initial range to show in events dashboard
+Default is \fB4.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B maxmag
+Type: \fIdouble\fP
+.sp
+Maximum magnitude use in the initial range to show in events dashboard
+Default is \fB10.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B cmaplat
+Type: \fIdouble\fP
+.sp
+Initial latitude to center map
+Default is \fB13.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B cmaplon
+Type: \fIdouble\fP
+.sp
+Initial longitude to center map
+Default is \fB\-89.0\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B zoomap
+Type: \fIint\fP
+.sp
+Initial Zoom map 0 to 20
+Default is \fB5\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B evejsonpath
+Type: \fIString\fP
+.sp
+Path to query event envelope information
+Default is \fB@DATADIR@/sceewv/event/\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B phases
+Type: \fIlist:String\fP
+.sp
+List of phases for which to compute theoretical times
+Default is \fB[P,S,p,s]\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B colors
+Type: \fIlist:String\fP
+.sp
+List of colors to show phases selected phases
+Default is \fB[#4D5656,#424949,#4D5656,#424949]\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B model
+Type: \fIString\fP
+.sp
+Velocity model used to compute theroic arrivals
+Default is \fBiasp91\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B fdsnwsclientwf
+Type: \fIString\fP
+.sp
+Route to fdsnws service to query waveforms
+Default is \fBhttp://localhost:8080\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B envalias
+Type: \fIString\fP
+.sp
+Route to fdsnws service to query waveforms
+Default is \fBsceewvenv\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B eveminmag
+Type: \fIint\fP
+.sp
+Alias of sceewenv module to use in offline mode to compute envelope data
+Default is \fB4\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B evemaxmag
+Type: \fIint\fP
+.sp
+Maximum magnitude use in the initial range to show in events dashboard
+Default is \fB9.9\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B evedeltadays
+Type: \fIint\fP
+.sp
+Delta in days to select initial period to show in event dashboard
+Default is \fB30\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B timebefore
+Type: \fIint\fP
+.sp
+Time in seconds before pick to extract wavefrom
+Default is \fB10\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B timeafter
+Type: \fIint\fP
+.sp
+Time in seconds after pick to extract wavefrom
+Default is \fB180\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B maxdist
+Type: \fIint\fP
+.sp
+Maximum distance in km to look for waveforms to compute envelope data
+Default is \fB250\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B invuri
+Type: \fIString\fP
+.sp
+Database URI to query inventory to produce station list used in the envelope data plot
+Default is \fBmysql://sysop:sysop@localhost/seiscomp\fP\&.
+.UNINDENT
+.SH AUTHOR
+Ewarnica project
+.SH COPYRIGHT
+2024, TexNet
+.\" Generated by docutils manpage writer.
+.

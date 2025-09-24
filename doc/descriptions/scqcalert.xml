@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+	<module name="scqcalert" category="EEW" author="Ewarnica project">
+		<description>
+			Quality control alerts
+		</description>
+		<configuration>
+			<parameter name="APPSpath" type="path" default="@DATADIR@/scqcalert/">
+				<description>
+					Path to save/update config for dashboard
+				</description>
+			</parameter>
+			<parameter name="jsonPath" type="path" default="@DATADIR@/scqcalert/">
+				<description>
+					Path of JSON database to use in dashbaord
+				</description>
+			</parameter>
+			<parameter name="qcFreqStore" type="int" default="1435" unit="minutes">
+				<description>
+					Interval in minutes to send and stored alerts and notifications.
+				</description>
+			</parameter>
+			<parameter name="qcAlertDir" type="path" default="@DATADIR@/scqcalert">
+				<description>
+					Path to store email content, json database and config files.
+				</description>
+			</parameter>
+			<parameter name="qcMsgtype" type="String" default="alert">
+				<description>
+					Message type imported from scqc to send new messages to scqcalert (report/alert).
+				</description>
+			</parameter>
+
+			<parameter name="listMsg" type="list:String" default="[QC,CONFIG,INVENTORY,PICK,MAGNITUDE,LOCATION]">
+				<description>
+					Messaging groups to connect. (Not working, to change messaging groups go to source code)
+				</description>
+			</parameter>
+			<parameter name="netWhitelist" type="list:String" default="[MX,GI,SV,SN,NU,TC,OV,AM]">
+				<description>
+					List with networks allowed to process
+				</description>
+			</parameter>
+			<parameter name="netBlacklist" type="list:String" default="">
+				<description>
+					List with networks not allowed to process
+				</description>
+			</parameter>
+			<parameter name="locBlacklist" type="list:String" default="99">
+				<description>
+					List with location codes not allowed to process
+				</description>
+			</parameter>
+			<parameter name="chanWhitelist" type="list:String" default="[HN,EN,SN,HH,EH,SH]">
+				<description>
+					List with channels allowed to process
+				</description>
+			</parameter>
+			<parameter name="chanBlacklist" type="list:String" default="">
+				<description>
+					List with channels not allowed to process
+				</description>
+			</parameter>
+			<parameter name="dbURIcmpuQC" type="String">
+				<description>
+					db URI to query QC parameters when using --QCquery mode
+				</description>
+			</parameter>
+			<parameter name="qcMetNames" type="list:String" default="[delay,latency]">
+				<description>
+					QC metric names to query when using --QCquery mode
+				</description>
+			</parameter>
+			<parameter name="qcMetThrs" type="list:double" default="[5.0,5.0]">
+				<description>
+					QC metric thresholds to send alerts when using --QCquery mode
+				</description>
+			</parameter>
+			<parameter name="psdDir" type="path">
+				<description>
+					Path with npz files for psd evaluation
+				</description>
+			</parameter>
+			<parameter name="trig_max" type="int" default="30">
+				<description>
+					Maximum number of triggers
+				</description>
+			</parameter>
+			<parameter name="pickName" type="String" default="scautopick">
+				<description>
+					scautopick alias name to extract config values (trigOn)
+				</description>
+			</parameter>
+			<parameter name="mag_max" type="double" default="8.0">
+				<description>
+					Maximum magnitude value
+				</description>
+			</parameter>
+			<parameter name="pick_res_max" type="double" default="1.5" unit="seconds">
+				<description>
+					Maximum pick residual
+				</description>
+			</parameter>
+			<parameter name="dbURIcmpuDB" type="String">
+				<description>
+					db URI to query arrivals and magnitudes when using --DBquery mode
+				</description>
+			</parameter>
+			<parameter name="arrRes" type="double">
+				<description>
+					Maximum arrival residual to send alerts when using --DBquery mode
+				</description>
+			</parameter>
+			<parameter name="magRes" type="double">
+				<description>
+					Maximum magnitude residual to send alerts when using --DBquery mode
+				</description>
+			</parameter>
+			<parameter name="qcMargin" type="int" default="86400" >
+				<description>
+					Period in seconds to search for qc values (timing quality)
+				</description>
+			</parameter>
+			<parameter name="mag_res_max" type="double" default="1.0">
+				<description>
+					Maximum magnitude residual
+				</description>
+			</parameter>
+			<parameter name="min_res_sample" type="int" default="3">
+				<description>
+					Minimum number of pick and magnitude residuals
+				</description>
+			</parameter>
+			<parameter name="fdsnwsResp" type="String" default="http://localhost:8080">
+				<description>
+					fdsnws service to import response
+				</description>
+			</parameter>
+			<parameter name="psdPeriods" type="list:double" default="[1,0.2,0.1,0.066]" unit="seconds">
+				<description>
+					Periods to evaluate psd values
+				</description>
+			</parameter>
+			<parameter name="psdmin" type="double" default="-130.0" unit="db">
+				<description>
+					Minimum PSD value
+				</description>
+			</parameter>
+			<parameter name="psdmax" type="double" default="-90.0" unit="db">
+				<description>
+					Mimimum ratio STA/LTA logic to evaluate changes on PSDs
+				</description>
+			</parameter>
+			<parameter name="psdslmax" type="double" default="1.04">
+				<description>
+					Maximum ratio STA/LTA logic to evaluate changes on PSDs
+				</description>
+			</parameter>
+			<parameter name="psd_numdays" type="int" default="5">
+				<description>
+					Number of days to calculate LTA using PSDs average values
+				</description>
+			</parameter>
+			<parameter name="psdSource" type="String" default="file">
+				<description>
+					Source of PSD files in .npz format. Only url or file available.
+				</description>
+			</parameter>
+			<parameter name="psdNets" type="list:String">
+				<description>
+					Network codes to query PSD files when url set as psdSourse.
+				</description>
+			</parameter>
+			<parameter name="psdUrl" type="String">
+				<description>
+					URL to query PSD files when url set as psdSource
+				</description>
+			</parameter>
+			<parameter name="psdTempDir" type="path">
+				<description>
+					Path to save PSDs downloaded from url when url set as psdSourse.
+				</description>
+			</parameter>
+			<parameter name="availThr" type="int" default="70">
+				<description>
+					Percentage threshold to send alert on SDS data available
+				</description>
+			</parameter>
+			<parameter name="dbURIcmpuAVAIL" type="String">
+				<description>
+					db URI to query availability information using --AVAILcomp mode
+				</description>
+			</parameter>
+		</configuration>
+	</module>
+</seiscomp>
