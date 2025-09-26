@@ -10,7 +10,7 @@ import logging as stdlogging
 from logging.handlers import RotatingFileHandler
 import os
 # os.environ["RAY_DEDUP_LOGS"] = "0"
-import sys, ray, time, traceback, glob
+import sys, ray, time, traceback, glob, re
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -1842,24 +1842,52 @@ class scmlpick(StreamApplication):
             Notifier.Enable()
             # ep = EventParameters()
             # ep.add(pickObj)
+            netSta_pick = f"{pickObj.waveformID().networkCode()}.{pickObj.waveformID().stationCode()}"
+            profile_to_target = {p["name"]: p.get("pickTargetGroup") for p in self.profiles}
+
+            # targets = {
+            #     profile_to_target.get(b["profile"])
+            #     for b in self.bindings
+            #     if b.get("key") == netSta
+            # }
+
+            targets = set()
+            matched = False
+            for b in self.bindings:
+                b_net = b.get("net")
+                b_sta = b.get("sta")
+                if not b_net or not b_sta:
+                    continue
+                b_netsta = f"{b_net}.{b_sta}"
+                if b_netsta != netSta_pick:
+                    continue
+
+                matched = True
+                raw_profiles = b.get("profiles", "")
+                prof_list = [p for p in re.split(r"[,\s]+", raw_profiles) if p]
+
+                if not prof_list:
+                    targets.add(None)
+                    continue
+
+                for prof in prof_list:
+                    tgt = profile_to_target.get(prof)
+                    if tgt:
+                        targets.add(tgt)
+
+            if not matched or not targets:
+                targets = {None}
+
             n = Notifier("EventParameters", op, pickObj)
             msg = NotifierMessage()
             msg.attach(n)
-            netSta = f"{pickObj.waveformID().networkCode()}.{pickObj.waveformID().stationCode()}"
-
-            profile_to_target = {p["name"]: p.get("pickTargetGroup") for p in self.profiles}
-            targets = {
-                profile_to_target.get(b["profile"])
-                for b in self.bindings
-                if b.get("key") == netSta
-            }
 
             for target in targets:
                 if target:
-                    logging.debug(f"Trying to send pick {netSta} to {target}")
+                    logging.debug(f"Trying to send pick {netSta_pick} to {target}")
                     out = self.connection().send(target, msg)
                 else:
-                    logging.debug(f"Trying to send pick {netSta} to default target")
+                    logging.debug(f"Trying to send pick {netSta_pick} to default target")
                     out = self.connection().send(msg)
                 logging.debug("Pick sent? %s", "Yes" if out else "No, failed")
 
