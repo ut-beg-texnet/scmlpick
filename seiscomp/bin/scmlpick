@@ -1889,7 +1889,7 @@ class scmlpick(StreamApplication):
                 else:
                     logging.debug(f"Trying to send pick {netSta_pick} to default target")
                     out = self.connection().send(msg)
-                logging.debug("Pick sent? %s", "Yes" if out else "No, failed")
+                logging.debug("Pick sent? {}".format("Yes" if out else "No, failed"))
 
             # for profile in self.profiles:
             #     logging.debug("PROFILE %s" % profile["name"])
