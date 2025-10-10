@@ -2,6 +2,10 @@
 
 **scmlpick** is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
 
+For full documentation, configuration guidelines, and usage examples, please refer to the official module documentation:
+
+👉 [Official Documentation]https://ut-beg-texnet.github.io/scmlpick/
+
 ## Table of Contents
 
 - [Project Description](#project-description)
