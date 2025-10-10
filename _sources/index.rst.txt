@@ -3,7 +3,7 @@
 =========================
 TexNet SeisComP addons documentation
 =========================
-TEST
+
 This is the documentation for the SeisComP modules, tools, packages and plugins developed by TexNet.
 
 .. _fig-texnet:
