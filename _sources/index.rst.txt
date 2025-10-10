@@ -44,16 +44,16 @@ Table of Contents
    :caption: Modules
 
    /apps/scmlpick
-   /apps/sceewv
-   /apps/scqcalert
+   .. /apps/sceewv
+   .. /apps/scqcalert
 
 .. toctree::
    :maxdepth: 1
    :caption: Repositories
 
    scmlpick git <https://github.com/ut-beg-texnet/scmlpick.git>
-   sceewv git <https://gitlab.seismo.ethz.ch/SED-EEW/sceewv.git>
-   scqcalert git <https://gitlab.seismo.ethz.ch/SED-EEW/scqcalert.git>
+   .. sceewv git <https://gitlab.seismo.ethz.ch/SED-EEW/sceewv.git>
+   .. scqcalert git <https://gitlab.seismo.ethz.ch/SED-EEW/scqcalert.git>
 
 .. toctree::
    :maxdepth: 1
