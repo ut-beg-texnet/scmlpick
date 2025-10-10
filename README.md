@@ -4,7 +4,7 @@
 
 For full documentation, configuration guidelines, and usage examples, please refer to the official module documentation:
 
-👉 [Official Documentation]https://ut-beg-texnet.github.io/scmlpick/
+👉 [Official Documentation](https://ut-beg-texnet.github.io/scmlpick/)
 
 ## Table of Contents
 
