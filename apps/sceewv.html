@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sceewv &mdash; TexNet: SeisComP Addons</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=86f27845" />
+      <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=eafc0fe6" />
+
+  
+  
+        <script src="../_static/jquery.js?v=8dae8fb0"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="scqcalert" href="scqcalert.html" />
+    <link rel="prev" title="scmlpick" href="scmlpick.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            TexNet
+          </a>
+              <div class="version">
+                Generated on 2025/09/23
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="scmlpick.html">scmlpick</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">sceewv</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">SCEEWV</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#seiscomp-module">SeisComp Module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#json-databases">JSON Databases</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#events-dashboard">Events Dashboard</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#event-dashboard">Event Dashboard</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="scqcalert.html">scqcalert</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Repositories</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/ut-beg-texnet/scmlpick.git">scmlpick git</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://gitlab.seismo.ethz.ch/SED-EEW/sceewv.git">sceewv git</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://gitlab.seismo.ethz.ch/SED-EEW/scqcalert.git">scqcalert git</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">TexNet</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">sceewv</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/apps/sceewv.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="sceewv">
+<span id="id1"></span><h1>sceewv<a class="headerlink" href="#sceewv" title="Link to this heading"></a></h1>
+<section id="id2">
+<span id="id3"></span><h2>SCEEWV<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p><em>sceewv</em> is a tool to check, evaluate and analyze the performance of the
+Early Warning System. It reads information from the SeisComP system,
+store critical parameters in JSON databases, and creates dashboards that
+allow checking the performance interactively</p>
+<section id="seiscomp-module">
+<h3>SeisComp Module<a class="headerlink" href="#seiscomp-module" title="Link to this heading"></a></h3>
+<p><em>sceewv</em> reads event information including preferred and non-preferred
+origins to create databases with the required information to check the early
+warning performance.
+<em>sceewv</em> also stores acceleration envelope values
+using the <em>sceewenv</em> module, store this information in a database and
+use it to produce products that allow a fast evaluation of the seismic
+data for specific earthquakes.</p>
+<p>This module can be used in two ways:</p>
+<ul class="simple">
+<li><p>Real-time: <em>sceewv</em> connects directly with the messaging system and listens for new/updated/removed objects related to  early warning processing.</p></li>
+<li><p>Command-line: <em>sceewv</em> queries the SeisComP database for a specific period looking for all required information to update the dashboard.</p></li>
+</ul>
+<p>To read and compute events information:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nv">$sceewv</span><span class="w"> </span>-u<span class="w"> </span>usr<span class="w"> </span>--query<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;%Y-%m-%d %H:%M:%S&quot;</span><span class="w"> </span>--end<span class="w"> </span><span class="s2">&quot;%Y-%m-%d</span>
+<span class="s2">%H:%M:%S&quot;</span><span class="w"> </span>--debug
+</pre></div>
+</div>
+<p>To compute envelope information:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span><span class="nv">$sceewv</span><span class="w"> </span>-u<span class="w"> </span>usr<span class="w"> </span>--envelope<span class="w"> </span>--envstart<span class="w"> </span><span class="s2">&quot;%Y-%m-%d %H:%M:%S&quot;</span><span class="w"> </span>--endstart
+<span class="s2">&quot;%Y-%m-%d %H:%M:%S&quot;</span><span class="w"> </span>--debugcode
+</pre></div>
+</div>
+</section>
+<section id="json-databases">
+<h3>JSON Databases<a class="headerlink" href="#json-databases" title="Link to this heading"></a></h3>
+<p>All data is stored in two JSON databases stored by default in the
+default DATADIR of SeisComP.</p>
+<p>The first database includes all information related to Events, Origins,
+Picks and Magnitudes and is organized following the next structure:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>@DATADIR/events/year/month/day/eventID
+</pre></div>
+</div>
+<p>The second database includes acceleration envelope information for each
+station sorted by distance to the epicenter. This database is organized
+following the next structure:</p>
+<div class="highlight-sh notranslate"><div class="highlight"><pre><span></span>DATADIR@/event/year/month/day/eventID
+</pre></div>
+</div>
+<p>Files are stored in <em>JSON</em> format.</p>
+</section>
+<section id="events-dashboard">
+<h3>Events Dashboard<a class="headerlink" href="#events-dashboard" title="Link to this heading"></a></h3>
+<figure class="align-center" id="fig-eventdash1">
+<a class="reference internal image-reference" href="../_images/eventsDash.png"><img alt="../_images/eventsDash.png" src="../_images/eventsDash.png" style="width: 20cm;" /></a>
+</figure>
+<p>This dashboard includes the information stored in the events database
+and allows control quality of early warning results for a particular
+selection of events.</p>
+<figure class="align-center" id="fig-eventdash2">
+<a class="reference internal image-reference" href="../_images/eventsSettings.png"><img alt="../_images/eventsSettings.png" src="../_images/eventsSettings.png" style="width: 16cm;" /></a>
+</figure>
+<p>To use this application, you must select the events to analyze. To
+select events, you must:
+* Use drop-down menus at the top of the map on the left side to choose the period
+* Use the slider at the top of the map in the middle to choose the magnitude range.
+* Restrict the area to your interest region (configurable) using the check box at the top of the map on the right side.</p>
+<figure class="align-center" id="fig-eventdash3">
+<a class="reference internal image-reference" href="../_images/eventsMap.png"><img alt="../_images/eventsMap.png" src="../_images/eventsMap.png" style="width: 16cm;" /></a>
+</figure>
+<p>The map on the left side shows the selected events. The map shows
+events as circles. The event selected in the table is displayed with
+the biggest circle, and you can select an event if you click an event
+on the map. Circles could have three colors: black for true positives,
+yellow for false positives, and green for false negatives. At the
+bottom of the map, some relevant information is displayed. The map is
+interactive. It allows you to change the zoom (using the scroll) and to
+move the area (holding the left click). More interaction options could
+be activated using the menu in the upper right corner. Hovering the
+pointer over each circle on the map displays information (configurable)
+related to the event.</p>
+<figure class="align-center" id="fig-eventdash4">
+<a class="reference internal image-reference" href="../_images/eventsTable.png"><img alt="../_images/eventsTable.png" src="../_images/eventsTable.png" style="width: 16cm;" /></a>
+</figure>
+<p>The table with selected events is shown in the lower part of the right
+side of the events dashboard. The first two columns display information
+for the preferred origin. These columns could have a background color;
+yellow in case of a false positive, red in case of a false negative, or
+white for true positive events. Information regarding early warning
+solutions is shown from the third to the eighth column. The ninth
+column, called “EEW” indicates whether or not this information was sent
+to the early warning dissemination system such as EEWD, EEWBS, or the
+mobile application. The event selected in the table will be shown with
+a blue background and highlighted on the map (the biggest circle).
+Information can be sorted in descending order or ascending using the
+values of any column. The selection circle on the left side of each
+event allows you to select a single event to be analyzed with the event
+dashboard by pressing the link ”Go to selected event”.</p>
+<figure class="align-center" id="fig-eventdash5">
+<a class="reference internal image-reference" href="../_images/eventsPlot.png"><img alt="../_images/eventsPlot.png" src="../_images/eventsPlot.png" style="width: 16cm;" /></a>
+</figure>
+<p>In the upper part of the right side, you can select History to show the
+graph of delays for selected events. This plot shows in colored
+triangles the delay value corresponding to the arrival of the first 4
+phases (4th P) and the computation times for the previously configured
+types of magnitudes. A black line connects the delays of one event. The
+The 4th P delay is plotted below the zero line, but these are positive
+values. The yellow and red dotted lines show the false positives and
+false negatives. This graph is interactive. It allows you to modify the
+zoom (by selecting an area with the left click). Interaction options
+could be activated by hovering over the upper right corner. Data series
+can be deactivated or activated by pressing the name in the legend.</p>
+<figure class="align-center" id="fig-eventdash6">
+<a class="reference internal image-reference" href="../_images/sumary.png"><img alt="../_images/sumary.png" src="../_images/sumary.png" style="width: 16cm;" /></a>
+</figure>
+<p>At the top of the right side, you can select summary to display two
+graphs. On the left, is the histogram of delays in seconds for each
+intensity value. Intensities can be activated or deactivated by
+clicking on the legend. On the right, the plot shows the number of
+events T+, F+, and F- of the selected events. Clicking on the
+categories T+ and F+ modifies the graph showing the number of events
+with FinDer, VS, or FinDer and VS for the selected category. Hovering
+the pointer over any classification will show the corresponding number
+of events.</p>
+</section>
+<section id="event-dashboard">
+<h3>Event Dashboard<a class="headerlink" href="#event-dashboard" title="Link to this heading"></a></h3>
+<p>This dashboard includes the information stored in the event database
+and allows control quality of early warning results for a particular
+event:</p>
+<figure class="align-center" id="fig-eventsdash">
+<a class="reference internal image-reference" href="../_images/eventDash.png"><img alt="../_images/eventDash.png" src="../_images/eventDash.png" style="width: 20cm;" /></a>
+</figure>
+<p>Events and event dashboards are all linked. To open the event dashboard from
+the events dashboard uses the white circle on the left of the table and
+pass the link at the bottom of the table called “Go to selected
+event”:</p>
+<figure class="align-center" id="id4">
+<a class="reference internal image-reference" href="../_images/select_event.png"><img alt="../_images/select_event.png" src="../_images/select_event.png" style="width: 15cm;" /></a>
+</figure>
+<p>Dropdown menus to select EEW solutions and stations:</p>
+<ul class="simple">
+<li><p>Dropdown menu on the left with early warning solutions for the selected event. It is possible to select any solution that will modify the map, envelope plot, and performance plots content according to the selected solution.</p></li>
+<li><p>Dropdown menu on the right with two options, “all” and “used,” means select all available stations or stations used by the chosen solution in the side dropdown menu. The map and envelope plot content will change according to the selected option.</p></li>
+</ul>
+<dl class="simple">
+<dt>Using the data stored in the events and event JSON databases, the</dt><dd><p>dashboard displays a map with all the early warning solutions:</p>
+</dd>
+</dl>
+<figure class="align-center" id="id5">
+<a class="reference internal image-reference" href="../_images/eventMap.png"><img alt="../_images/eventMap.png" src="../_images/eventMap.png" style="width: 16cm;" /></a>
+</figure>
+<p>Below is a description for each object on the map:</p>
+<ul class="simple">
+<li><p>The stars represent the different locations. The black star is the preferred origin location, the yellow ones are all the locations associated with early warning solutions, and the green star symbolizes the EEW solution selected in the left dropdown menu at the top of the map.</p></li>
+<li><p>The green circles with dashed lines show fixed values of delay between the time of computing the selected early warning solution and the time the S phase takes to arrive.</p></li>
+<li><p>The green circles with solid lines represent intensity values reached for the selected early warning solution.</p></li>
+<li><p>The black circles with dashed lines represent some fixed values of delay between the computing time of the preferred solution and the time the S phase takes to arrive.</p></li>
+<li><p>The solid black circles represent intensity values achieved for the selected preferred solution.</p></li>
+<li><p>The purple triangles show the location of the stations with accelerometers.</p></li>
+<li><p>The green triangles show the location of stations with equipment other than accelerometers.</p></li>
+</ul>
+<p>Envelopes of acceleration are shown in a graph of distance versus time:</p>
+<figure class="align-center" id="id6">
+<a class="reference internal image-reference" href="../_images/eventEnv.png"><img alt="../_images/eventEnv.png" src="../_images/eventEnv.png" style="width: 20cm;" /></a>
+</figure>
+<p>This graph shows a line for each station. On the Y axis the epicentral
+distances of the stations, and on the X axis, the UTC time. In colors,
+the acceleration values are presented in m/s2. The red vertical line
+shows the time of the selected early warning solution. In addition, the
+arrivals of the direct and refracted P and S waves are shown in gray
+dotted lines.</p>
+<p>The main objectives of this graph are:</p>
+<ul class="simple">
+<li><p>Compare the time of the EEW solution with the theoretical and real arrival of the P and S waves.</p></li>
+<li><p>To check the value of the accelerations measured at each station and the variation of acceleration for the same station according to the different arrivals of seismic waves.</p></li>
+<li><p>Distribution regarding the hypocentral distance of the stations selected in the dropdown at the top of the map.</p></li>
+<li><p>See other effects, such as energy attenuation increasing the hypocentral distance.</p></li>
+</ul>
+<p>Using the parametric data stored in the events database, the dashboard
+shows several graphs to monitor some important parameters computed
+during the process of locating and estimating the magnitudes by the
+early warning system:</p>
+<figure class="align-center" id="id7">
+<a class="reference internal image-reference" href="../_images/eventPlot.png"><img alt="../_images/eventPlot.png" src="../_images/eventPlot.png" style="width: 20cm;" /></a>
+</figure>
+<p>The dashboard has four quality control diagrams:</p>
+<ul class="simple">
+<li><p>Magnitude: Shows the values of each type of early warning magnitude. It also displays the preferred magnitude value as a reference value.</p></li>
+<li><p>Location: Shows the differences in km of the locations associated with EEW magnitudes versus preferred location.</p></li>
+<li><p>Likelihood: Shows the likelihood values for each type of early warning magnitude.</p></li>
+<li><p>Stations: The number of stations used to compute locations associated with early warning magnitude types. It also presents the number of stations used for the preferred location as a reference value.</p></li>
+</ul>
+<p>The green vertical lines in all diagrams indicate the values related to
+the EEW selected solution in the dropdown on the top of the map.</p>
+<figure class="align-center" id="id8">
+<a class="reference internal image-reference" href="../_images/menu.png"><img alt="../_images/menu.png" src="../_images/menu.png" style="width: 10cm;" /></a>
+</figure>
+<p>In the top right corner, the button labeled menu unfolds a hidden side
+menu with links to the index and other dashboards. Below are options to
+select the event using the eventID or look for the event using the time
+and magnitude range.</p>
+<section id="configuration">
+<h4>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h4>
+<div class="line-block">
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/defaults/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/defaults/sceewv.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">etc/sceewv.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">~/.seiscomp/global.cfg</span></code></div>
+<div class="line"><code class="file docutils literal notranslate"><span class="pre">~/.seiscomp/sceewv.cfg</span></code></div>
+</div>
+<p>sceewv inherits <a class="reference external" href="https://docs.gempa.de/seiscomp/current/apps/global.html">global options</a>.</p>
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-postProcFreq">
+<span class="sig-name descname"><span class="pre">postProcFreq</span></span><a class="headerlink" href="#confval-postProcFreq" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Interval in minutes to compute envelopes and update events JSON database
+Default is <code class="docutils literal notranslate"><span class="pre">60</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-APPSpath">
+<span class="sig-name descname"><span class="pre">APPSpath</span></span><a class="headerlink" href="#confval-APPSpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to save/update config for all apps
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-JSONpath">
+<span class="sig-name descname"><span class="pre">JSONpath</span></span><a class="headerlink" href="#confval-JSONpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to save JSON database
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/events/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fdTypes">
+<span class="sig-name descname"><span class="pre">fdTypes</span></span><a class="headerlink" href="#confval-fdTypes" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>Types of magnitude FinDer allowed
+Default is <code class="docutils literal notranslate"><span class="pre">[Mfd,Mfdr,Mfdl]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-alert">
+<span class="sig-name descname"><span class="pre">alert</span></span><a class="headerlink" href="#confval-alert" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>bool</em></p>
+<p>If scqcalert dashboard available. alertpath required
+Default is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-alertpath">
+<span class="sig-name descname"><span class="pre">alertpath</span></span><a class="headerlink" href="#confval-alertpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to scqcalert dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-host">
+<span class="sig-name descname"><span class="pre">host</span></span><a class="headerlink" href="#confval-host" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Bind address of the server. &quot;0.0.0.0&quot; allows any interface to conect to this server
+Default is <code class="docutils literal notranslate"><span class="pre">0.0.0.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-port">
+<span class="sig-name descname"><span class="pre">port</span></span><a class="headerlink" href="#confval-port" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Server port
+Default is <code class="docutils literal notranslate"><span class="pre">8050</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-mapboxtoken">
+<span class="sig-name descname"><span class="pre">mapboxtoken</span></span><a class="headerlink" href="#confval-mapboxtoken" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>App key to use custom maps with mapbox
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/mapbox_token</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-extquery">
+<span class="sig-name descname"><span class="pre">extquery</span></span><a class="headerlink" href="#confval-extquery" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>bool</em></p>
+<p>Use external catalog to evaluate events
+Default is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fdsnwsname">
+<span class="sig-name descname"><span class="pre">fdsnwsname</span></span><a class="headerlink" href="#confval-fdsnwsname" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>fdsnws service name to use for external catalog
+Default is <code class="docutils literal notranslate"><span class="pre">NEIC</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-agency">
+<span class="sig-name descname"><span class="pre">agency</span></span><a class="headerlink" href="#confval-agency" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Agency name
+Default is <code class="docutils literal notranslate"><span class="pre">OVSICORI-UNA</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fdsnwsclient">
+<span class="sig-name descname"><span class="pre">fdsnwsclient</span></span><a class="headerlink" href="#confval-fdsnwsclient" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Route to fdsnws service
+Default is <code class="docutils literal notranslate"><span class="pre">https://earthquake.usgs.gov/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-deltatime">
+<span class="sig-name descname"><span class="pre">deltatime</span></span><a class="headerlink" href="#confval-deltatime" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Delta time in minutes to compare events against external catalog
+Default is <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-deltadist">
+<span class="sig-name descname"><span class="pre">deltadist</span></span><a class="headerlink" href="#confval-deltadist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Delta distance in degrees to compare events against external catalog
+Default is <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-magtypes">
+<span class="sig-name descname"><span class="pre">magtypes</span></span><a class="headerlink" href="#confval-magtypes" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>EEW magnitude types allowed to show in events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">[MVS,Mfd,Mfdr,Mfdl]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-latmin">
+<span class="sig-name descname"><span class="pre">latmin</span></span><a class="headerlink" href="#confval-latmin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Minimum latitude allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">5.5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-latmax">
+<span class="sig-name descname"><span class="pre">latmax</span></span><a class="headerlink" href="#confval-latmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum latitude allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">19.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-lonmin">
+<span class="sig-name descname"><span class="pre">lonmin</span></span><a class="headerlink" href="#confval-lonmin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Minimum longitude allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">-94.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-lonmax">
+<span class="sig-name descname"><span class="pre">lonmax</span></span><a class="headerlink" href="#confval-lonmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum longitude allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">-81.5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-latrmin">
+<span class="sig-name descname"><span class="pre">latrmin</span></span><a class="headerlink" href="#confval-latrmin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Minimum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">10.5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-latrmax">
+<span class="sig-name descname"><span class="pre">latrmax</span></span><a class="headerlink" href="#confval-latrmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">14.6</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-lonrmin">
+<span class="sig-name descname"><span class="pre">lonrmin</span></span><a class="headerlink" href="#confval-lonrmin" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Minimum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">-90.5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-lonrmax">
+<span class="sig-name descname"><span class="pre">lonrmax</span></span><a class="headerlink" href="#confval-lonrmax" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+Default is <code class="docutils literal notranslate"><span class="pre">-87.1</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-jsonpath">
+<span class="sig-name descname"><span class="pre">jsonpath</span></span><a class="headerlink" href="#confval-jsonpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>path</em></p>
+<p>Path to query events information
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/events/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-distint">
+<span class="sig-name descname"><span class="pre">distint</span></span><a class="headerlink" href="#confval-distint" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Distance in km to compute intensity using allen 2012
+Default is <code class="docutils literal notranslate"><span class="pre">100</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fpstatus">
+<span class="sig-name descname"><span class="pre">fpstatus</span></span><a class="headerlink" href="#confval-fpstatus" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>bool</em></p>
+<p>Show FP delay information in the histogram events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-deltadays">
+<span class="sig-name descname"><span class="pre">deltadays</span></span><a class="headerlink" href="#confval-deltadays" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Delta in days to select initial period to show in events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">30</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-minmag">
+<span class="sig-name descname"><span class="pre">minmag</span></span><a class="headerlink" href="#confval-minmag" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Minumum magnitude use in the initial range to show in events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">4.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-maxmag">
+<span class="sig-name descname"><span class="pre">maxmag</span></span><a class="headerlink" href="#confval-maxmag" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Maximum magnitude use in the initial range to show in events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">10.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-cmaplat">
+<span class="sig-name descname"><span class="pre">cmaplat</span></span><a class="headerlink" href="#confval-cmaplat" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Initial latitude to center map
+Default is <code class="docutils literal notranslate"><span class="pre">13.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-cmaplon">
+<span class="sig-name descname"><span class="pre">cmaplon</span></span><a class="headerlink" href="#confval-cmaplon" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>double</em></p>
+<p>Initial longitude to center map
+Default is <code class="docutils literal notranslate"><span class="pre">-89.0</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-zoomap">
+<span class="sig-name descname"><span class="pre">zoomap</span></span><a class="headerlink" href="#confval-zoomap" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Initial Zoom map 0 to 20
+Default is <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-evejsonpath">
+<span class="sig-name descname"><span class="pre">evejsonpath</span></span><a class="headerlink" href="#confval-evejsonpath" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Path to query event envelope information
+Default is <code class="docutils literal notranslate"><span class="pre">&#64;DATADIR&#64;/sceewv/event/</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-phases">
+<span class="sig-name descname"><span class="pre">phases</span></span><a class="headerlink" href="#confval-phases" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List of phases for which to compute theoretical times
+Default is <code class="docutils literal notranslate"><span class="pre">[P,S,p,s]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-colors">
+<span class="sig-name descname"><span class="pre">colors</span></span><a class="headerlink" href="#confval-colors" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>list:String</em></p>
+<p>List of colors to show phases selected phases
+Default is <code class="docutils literal notranslate"><span class="pre">[#4D5656,#424949,#4D5656,#424949]</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-model">
+<span class="sig-name descname"><span class="pre">model</span></span><a class="headerlink" href="#confval-model" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Velocity model used to compute theroic arrivals
+Default is <code class="docutils literal notranslate"><span class="pre">iasp91</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-fdsnwsclientwf">
+<span class="sig-name descname"><span class="pre">fdsnwsclientwf</span></span><a class="headerlink" href="#confval-fdsnwsclientwf" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Route to fdsnws service to query waveforms
+Default is <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-envalias">
+<span class="sig-name descname"><span class="pre">envalias</span></span><a class="headerlink" href="#confval-envalias" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Route to fdsnws service to query waveforms
+Default is <code class="docutils literal notranslate"><span class="pre">sceewvenv</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-eveminmag">
+<span class="sig-name descname"><span class="pre">eveminmag</span></span><a class="headerlink" href="#confval-eveminmag" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Alias of sceewenv module to use in offline mode to compute envelope data
+Default is <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-evemaxmag">
+<span class="sig-name descname"><span class="pre">evemaxmag</span></span><a class="headerlink" href="#confval-evemaxmag" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Maximum magnitude use in the initial range to show in events dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">9.9</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-evedeltadays">
+<span class="sig-name descname"><span class="pre">evedeltadays</span></span><a class="headerlink" href="#confval-evedeltadays" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Delta in days to select initial period to show in event dashboard
+Default is <code class="docutils literal notranslate"><span class="pre">30</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-timebefore">
+<span class="sig-name descname"><span class="pre">timebefore</span></span><a class="headerlink" href="#confval-timebefore" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Time in seconds before pick to extract wavefrom
+Default is <code class="docutils literal notranslate"><span class="pre">10</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-timeafter">
+<span class="sig-name descname"><span class="pre">timeafter</span></span><a class="headerlink" href="#confval-timeafter" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Time in seconds after pick to extract wavefrom
+Default is <code class="docutils literal notranslate"><span class="pre">180</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-maxdist">
+<span class="sig-name descname"><span class="pre">maxdist</span></span><a class="headerlink" href="#confval-maxdist" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Maximum distance in km to look for waveforms to compute envelope data
+Default is <code class="docutils literal notranslate"><span class="pre">250</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-invuri">
+<span class="sig-name descname"><span class="pre">invuri</span></span><a class="headerlink" href="#confval-invuri" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>Database URI to query inventory to produce station list used in the envelope data plot
+Default is <code class="docutils literal notranslate"><span class="pre">mysql://sysop:sysop&#64;localhost/seiscomp</span></code>.</p>
+</dd></dl>
+
+</section>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="scmlpick.html" class="btn btn-neutral float-left" title="scmlpick" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="scqcalert.html" class="btn btn-neutral float-right" title="scqcalert" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, TexNet.
+      <span class="lastupdated">Last updated on Sep 23, 2025.
+      </span></p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
