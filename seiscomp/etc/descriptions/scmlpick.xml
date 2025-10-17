@@ -131,6 +131,11 @@
                                                         This is the name of the group to send pick messages for specific profile
                                                         </description>
                                                 </parameter>
+                                                <parameter name="pickSimulTargetGroup" type="String" default="PICK">
+                                                        <description>
+                                                        This is the name of the group to which pick messages will be sent for a specific profile from the real-time simulation pipeline
+                                                        </description>
+                                                </parameter>
                                                 <parameter name="locTargetGroup" type="String" default="LOCATION">
                                                         <description>
                                                         This is the name of the group to send location messages for specific profile

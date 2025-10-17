@@ -21,7 +21,7 @@ from seiscomp.core import Time, FloatArray
 from seiscomp import logging, geo
 from obspy import Stream, Trace, UTCDateTime, read
 from pathlib import Path
-from itertools import product
+from itertools import product, count
 import seiscomp.io
 from seiscomp.system import Environment
 import multiprocessing as mp
@@ -31,6 +31,7 @@ import fnmatch
 import psutil
 import threading
 import queue
+from queue import PriorityQueue, Empty
 from collections import Counter
 from ray.runtime_context import get_runtime_context
 from collections import defaultdict
@@ -400,7 +401,194 @@ class scmlpick(StreamApplication):
             "availability": availability
             }
 
+        self._pacer_init(
+            max_sleep=10,
+            max_global_delay=20.0,
+            recover_threshold=5.0,
+            catchup_factor=0.5,
+            grace=0.01
+        )
         return True
+
+    def _pacer_init(self,
+                    max_sleep=None,
+                    max_global_delay=None,
+                    recover_threshold=1.0,
+                    catchup_factor=0.5,
+                    grace=0.02):
+
+        self._pacer_max_sleep = max_sleep
+        self._pacer_max_global_delay = max_global_delay
+        self._pacer_recover_threshold = recover_threshold
+        self._pacer_catchup_factor = float(catchup_factor)
+        self._pacer_grace = float(grace)
+
+        self._pacer_q = PriorityQueue()
+        self._pacer_seq = count()
+        self._pacer_stop_evt = threading.Event()
+        self._pacer_thread = threading.Thread(target=self._pacer_run, daemon=True)
+
+        self._pacer_has_base = False
+        self._pacer_base_pick_time = 0.0
+        self._pacer_base_mono_time = 0.0
+
+        self._pacer_last_sent_ts = None 
+        self._pacer_initial_delay = None
+        self._pacer_seen_ids = set()
+
+        self._pacer_thread.start()
+
+    def _pacer_pick_id(self, p):
+        try:
+            pickObj = Pick.Cast(p)
+            key = (
+                pickObj.waveformID().networkCode(),
+                pickObj.waveformID().stationCode(),
+                pickObj.waveformID().locationCode(),
+                pickObj.waveformID().channelCode(),
+                pickObj.phaseHint().code(),
+                round(self._pacer_pick_epoch(p), 6),
+            )
+            return f"K:{key}"
+        except Exception:
+            return f"OBJ:{id(p)}"
+
+    def _pacer_pick_epoch(self, p):
+        t = p.time()
+        # try:
+        v = t.value()
+        sec = getattr(v, "seconds", lambda: None)()
+        usec = getattr(v, "microseconds", lambda: 0)()
+        if sec is not None:
+            return float(sec) + float(usec) / 1e6
+        else:
+            logging.error(f"Failed converting pick.time() to epoch (pick={p})")
+
+    def _pacer_submit(self, picks):
+        if not picks:
+            return
+        items = []
+        for p in picks:
+            pid = self._pacer_pick_id(p)
+            if pid in self._pacer_seen_ids:
+                continue
+            ts = self._pacer_pick_epoch(p)
+            items.append((ts, pid, p))
+        if not items:
+            return
+        items.sort(key=lambda x: x[0])
+
+        if not self._pacer_has_base:
+            self._pacer_base_pick_time = items[0][0]
+            self._pacer_base_mono_time = time.monotonic()
+            self._pacer_has_base = True
+            logging.info(f"[pacer] base set: base_ts={self._pacer_base_pick_time:.6f}, base_mono={self._pacer_base_mono_time:.3f}")
+
+        for ts, pid, p in items:
+            self._pacer_seen_ids.add(pid)
+            self._pacer_q.put((ts, next(self._pacer_seq), pid, p))
+
+        now_wall = time.time()
+        batch_sz  = len(items)
+        batch_min_ts = items[0][0]
+        batch_max_ts = items[-1][0]
+        batch_min_age = max(0.0, now_wall - batch_max_ts)
+        batch_max_age = max(0.0, now_wall - batch_min_ts)
+        qsize = self._pacer_q.qsize()
+
+        logging.info(f"[pacer] submit: batch={batch_sz} qsize={qsize} batch_min_age={batch_min_age:.3f}s batch_max_age={batch_max_age:.3f}s")
+
+    def _pacer_stop(self, timeout=None):
+        if getattr(self, "_pacer_thread", None) is None:
+            return
+        self._pacer_stop_evt.set()
+        self._pacer_q.put((float("inf"), next(self._pacer_seq), None, None))
+        self._pacer_thread.join(timeout=timeout)
+
+    def _pacer_compute_ideal_target(self, ts):
+        return self._pacer_base_mono_time + (ts - self._pacer_base_pick_time)
+
+    def _pacer_apply_recovery(self, ideal_target, now, current_global_delay):
+        target = ideal_target
+        if self._pacer_max_global_delay is not None:
+            lag_to_ideal = now - ideal_target
+            if lag_to_ideal > self._pacer_max_global_delay:
+                shift = lag_to_ideal - self._pacer_max_global_delay
+                self._pacer_base_mono_time += shift
+                target += shift
+                logging.warning(f"[pacer] rebasing base by +{shift:.3f}s to cap global delay at {self._pacer_max_global_delay:.3f}s")
+
+        if target < now:
+            if now - target <= self._pacer_grace:
+                target = now + (self._pacer_grace - (now - target))
+            else:
+                target = now
+
+        if (self._pacer_initial_delay is not None and
+            current_global_delay > self._pacer_initial_delay + self._pacer_recover_threshold):
+            sleep = target - now
+            if sleep > 0 and 0 < self._pacer_catchup_factor < 1.0:
+                comp = sleep * (1.0 - self._pacer_catchup_factor)
+                target = target - comp
+                if target < now:
+                    target = now
+                logging.debug(
+                    f"[pacer] catch-up: reducing sleep from {sleep:.3f}s to {(target-now):.3f}s "
+                    f"(factor={self._pacer_catchup_factor:.2f})"
+                )
+
+        if self._pacer_max_sleep is not None:
+            max_target = now + self._pacer_max_sleep
+            if target > max_target:
+                target = max_target
+
+        return target
+
+    def _pacer_run(self):
+        while not self._pacer_stop_evt.is_set():
+            try:
+                ts, _seq, pid, p = self._pacer_q.get(timeout=0.5)
+            except Empty:
+                continue
+            if p is None:
+                break
+
+            now = time.monotonic()
+            ideal_target = self._pacer_compute_ideal_target(ts)
+
+            global_delay_now = max(0.0, now - ideal_target)
+
+            if self._pacer_initial_delay is None:
+                self._pacer_initial_delay = global_delay_now
+                logging.info(f"[pacer] initial_delay set to {self._pacer_initial_delay:.3f}s")
+
+            target = self._pacer_apply_recovery(ideal_target, now, global_delay_now)
+
+            sleep = target - time.monotonic()
+            if sleep > 0:
+                time.sleep(sleep)
+
+            try:
+                logging.info(f"[pacer] trying to send pick {p}, time target: {target}")
+                self.sendPick(p, 'simul')
+            except Exception as e:
+                logging.error(f"[pacer] error sending pick: {e}")
+
+            now_wall = time.time()
+            real_delay = max(0.0, now_wall - ts)
+            logging.info(f"[pacer] sent: pid={pid} real_delay={real_delay:.3f}s ts={ts:.3f} now={now_wall:.3f}")
+
+            self._pacer_last_sent_ts = ts
+
+            now2 = time.monotonic()
+            last_target = self._pacer_compute_ideal_target(ts)
+            current_delay = max(0.0, now2 - last_target)
+            delta_vs_initial = current_delay - (self._pacer_initial_delay or 0.0)
+
+            logging.info(
+                f"[pacer] sent pick pid={pid} ts={ts:.3f} "
+                f"delay_current={current_delay:.3f}s delta_vs_initial={delta_vs_initial:+.3f}s"
+            )
 
     def parse_time(self, time_str: str) -> UTCDateTime:
         formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
@@ -877,6 +1065,14 @@ class scmlpick(StreamApplication):
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.pickTargetGroup')
                     logging.warning('setting default pickTargetGroup')
                     profDic['pickTargetGroup'] = ''
+                    pass
+
+                try:
+                    profDic['pickSimulTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickSimulTargetGroup')
+                except:
+                    logging.warning('Error when reading pipelines.profiles.'+profile+'.pickSimulTargetGroup')
+                    logging.warning('setting default pickSimulTargetGroup')
+                    profDic['pickSimulTargetGroup'] = ''
                     pass
 
                 try:
@@ -1635,8 +1831,10 @@ class scmlpick(StreamApplication):
                         try:
                             result = ray.get(result_id)
                             # logging.info(f"Result received on the monitor: {result}")
-                            self.scPhase(result)
+                            # picks = self.scPhase(result)
+                            picks = self.scPhase(result)
                             results.append(result)
+                            self._pacer_submit(picks)
                         except Exception as task_error:
                             logging.error("Error while processing task {}".format(task_error))
                             logging.error(traceback.format_exc())
@@ -1707,18 +1905,22 @@ class scmlpick(StreamApplication):
 
     def scPhase(self,picks):
         ep = EventParameters()
+        resPicks = []
         for pickData in picks:
             logging.info(str(pickData))
             if pickData['PdateTime']:
                 PpickID, pick = self.scPick(pickData, 'P', 'PdateTime', 'p_prob')
                 ep.add(pick)
+                resPicks.append(pick)
                 if pickData['SdateTime']:
                     pickData['PpickID'] = PpickID
                     SpickID, pick = self.scPick(pickData, 'S', 'SdateTime', 's_prob')
                     ep.add(pick)
+                    resPicks.append(pick)
         if self.playback:
             self.writeXMLObj(ep)
             # self.writeXMLObj(comm)
+        return resPicks
 
     def scPick(self,pickData,phaseHint,strDate,strProp):
         pick = Pick.Create()
@@ -1783,7 +1985,7 @@ class scmlpick(StreamApplication):
         if self.playback:
             pass
         else:
-            self.sendPick(pick)
+            self.sendPick(pick, 'asap')
             self.sendComt(comm, pick)
 
             # pickRef = PickReference()
@@ -1835,7 +2037,7 @@ class scmlpick(StreamApplication):
             # out = self.connection().send(msg)
             # logging.debug("Comment sent? %s" % "Yes" if out else "No, failed" )
 
-    def sendPick(self, pick):
+    def sendPick(self, pick, mode='asap'):
         op = OP_ADD
         if pick:
             pickObj = Pick.Cast(pick)
@@ -1843,8 +2045,10 @@ class scmlpick(StreamApplication):
             # ep = EventParameters()
             # ep.add(pickObj)
             netSta_pick = f"{pickObj.waveformID().networkCode()}.{pickObj.waveformID().stationCode()}"
-            profile_to_target = {p["name"]: p.get("pickTargetGroup") for p in self.profiles}
-
+            if mode == 'simul':
+                profile_to_target = {p["name"]: p.get("pickSimulTargetGroup") for p in self.profiles}
+            elif mode == 'asap':
+                profile_to_target = {p["name"]: p.get("pickTargetGroup") for p in self.profiles}
             # targets = {
             #     profile_to_target.get(b["profile"])
             #     for b in self.bindings
@@ -2065,6 +2269,7 @@ class scmlpick(StreamApplication):
             self.monitorThread.join()
             logging.info(f'The main process has completed all tasks.')
             ray.shutdown()
+            self._pacer_stop()
         except Exception:
             pass
 
@@ -2076,6 +2281,7 @@ class scmlpick(StreamApplication):
             self.monitorThread.join()
             logging.info(f'The main process has completed all tasks.')
             ray.shutdown()
+            self._pacer_stop()
         except Exception:
             pass
 
@@ -2102,6 +2308,7 @@ class scmlpick(StreamApplication):
                     self.monitorThread.join()
                     logging.info(f'The main process has completed all tasks.')
                     ray.shutdown()
+                    self._pacer_stop()
                 except Exception:
                     pass
             return True
