@@ -408,6 +408,9 @@ class scmlpick(StreamApplication):
             catchup_factor=0.5,
             grace=0.01
         )
+
+        self.start_bulk_sender(interval_s=1800)
+
         return True
 
     def _pacer_init(self,
@@ -607,6 +610,54 @@ class scmlpick(StreamApplication):
         logging.error(f"Invalid start time format: '{time_str}'. "
                     f"Expected 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD'.")
         self.handleClose()
+
+    def start_bulk_sender(self, interval_s=1800):
+        self._bulk_interval = interval_s
+        self._bulk_buffer = []
+        self._bulk_lock = threading.Lock()
+        self._bulk_stop_evt = threading.Event()
+        self._bulk_thread = threading.Thread(target=self._bulk_loop, daemon=True)
+        self._bulk_thread.start()
+        logging.info(f"[bulk] started with interval={interval_s}s")
+
+    def stop_bulk_sender(self):
+        if getattr(self, "_bulk_stop_evt", None):
+            self._bulk_stop_evt.set()
+        if getattr(self, "_bulk_thread", None):
+            self._bulk_thread.join(timeout=5)
+        logging.info("[bulk] stopped")
+
+    def add_pick_to_bulk(self, p):
+        if not hasattr(self, "_bulk_buffer"):
+            self._bulk_buffer = []
+        with self._bulk_lock:
+            self._bulk_buffer.append(p)
+
+    def _bulk_loop(self):
+        while not self._bulk_stop_evt.is_set():
+            start = time.monotonic()
+            time.sleep(self._bulk_interval)
+
+            with self._bulk_lock:
+                if not self._bulk_buffer:
+                    continue
+                picks_to_send = self._bulk_buffer
+                self._bulk_buffer = []
+
+            count = len(picks_to_send)
+            t0 = time.time()
+            try:
+                for p in picks_to_send:
+                    self.sendPick(p, 'bulk')
+            except Exception as e:
+                logging.warning(f"[bulk] error sending picks: {e}")
+
+            dt = time.time() - t0
+            logging.info(f"[bulk] sent {count} picks in {dt:.3f}s at {t0:.3f}")
+
+            elapsed = time.monotonic() - start
+            if elapsed < self._bulk_interval:
+                time.sleep(self._bulk_interval - elapsed)
 
     def get_mseed_files(self, input_path: str) -> list[str]:
         p = Path(input_path).expanduser()
@@ -1073,6 +1124,14 @@ class scmlpick(StreamApplication):
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.pickSimulTargetGroup')
                     logging.warning('setting default pickSimulTargetGroup')
                     profDic['pickSimulTargetGroup'] = ''
+                    pass
+
+                try:
+                    profDic['pickBulkTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickBulkTargetGroup')
+                except:
+                    logging.warning('Error when reading pipelines.profiles.'+profile+'.pickBulkTargetGroup')
+                    logging.warning('setting default pickBulkTargetGroup')
+                    profDic['pickBulkTargetGroup'] = ''
                     pass
 
                 try:
@@ -1835,6 +1894,8 @@ class scmlpick(StreamApplication):
                             picks = self.scPhase(result)
                             results.append(result)
                             self._pacer_submit(picks)
+                            for pick in picks:
+                                self.add_pick_to_bulk(pick)
                         except Exception as task_error:
                             logging.error("Error while processing task {}".format(task_error))
                             logging.error(traceback.format_exc())
@@ -2049,6 +2110,8 @@ class scmlpick(StreamApplication):
                 profile_to_target = {p["name"]: p.get("pickSimulTargetGroup") for p in self.profiles}
             elif mode == 'asap':
                 profile_to_target = {p["name"]: p.get("pickTargetGroup") for p in self.profiles}
+            elif mode == 'bulk':
+                profile_to_target = {p["name"]: p.get("pickBulkTargetGroup") for p in self.profiles}
             # targets = {
             #     profile_to_target.get(b["profile"])
             #     for b in self.bindings
@@ -2270,6 +2333,7 @@ class scmlpick(StreamApplication):
             logging.info(f'The main process has completed all tasks.')
             ray.shutdown()
             self._pacer_stop()
+            self.stop_bulk_sender()
         except Exception:
             pass
 
@@ -2282,6 +2346,7 @@ class scmlpick(StreamApplication):
             logging.info(f'The main process has completed all tasks.')
             ray.shutdown()
             self._pacer_stop()
+            self.stop_bulk_sender()
         except Exception:
             pass
 
@@ -2309,6 +2374,7 @@ class scmlpick(StreamApplication):
                     logging.info(f'The main process has completed all tasks.')
                     ray.shutdown()
                     self._pacer_stop()
+                    self.stop_bulk_sender()
                 except Exception:
                     pass
             return True

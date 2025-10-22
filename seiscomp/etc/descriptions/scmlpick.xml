@@ -133,7 +133,12 @@
                                                 </parameter>
                                                 <parameter name="pickSimulTargetGroup" type="String" default="PICK">
                                                         <description>
-                                                        This is the name of the group to which pick messages will be sent for a specific profile from the real-time simulation pipeline
+                                                        This is the name of the group to which pick messages will be sent for a specific profile when running the real-time simulation.
+                                                        </description>
+                                                </parameter>
+                                                <parameter name="pickBulkTargetGroup" type="String" default="PICK">
+                                                        <description>
+                                                        This is the name of the group to which pick messages will be sent for a specific profile when running the short-playback bulk.
                                                         </description>
                                                 </parameter>
                                                 <parameter name="locTargetGroup" type="String" default="LOCATION">
