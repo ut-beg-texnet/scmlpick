@@ -121,6 +121,26 @@
                                                 Profile names must match the profiles in the bindings configuration.
                                         </description>
                                 </parameter>
+                                        <parameter name="Standard" type="boolean" default="true">
+                                                <description>
+                                                If enabled, the module sends picks to the messaging system as soon as the module produces them. In the default setup, 1-minute windows are processed every 30 seconds.
+                                                </description>
+                                        </parameter>
+                                        <parameter name="Simulation" type="boolean" default="false">
+                                                <description>
+                                                If enabled, the module sends picks simulating the true arrival time but includes a delay corresponding to the first processed window.
+                                                </description>
+                                        </parameter>
+                                        <parameter name="Bulk" type="boolean" default="false">
+                                                <description>
+                                                If enabled, the module stores picks and sends them to the messaging system periodically, at a configurable time interval.
+                                                </description>
+                                        </parameter>
+                                        <parameter name="bulkInverval" type="int" default="1800">
+                                                <description>
+                                                Inverval in seconds used when bulk pick delivery strategy is enabled
+                                                </description>
+                                        </parameter>
                                 <group name="profiles">
                                         <description>
                                                 Profiles including specific configurations.
@@ -128,17 +148,17 @@
                                         <struct type="Pipeline profiles" link = "pipelines.profiles">
                                                 <parameter name="pickTargetGroup" type="String" default="PICK">
                                                         <description>
-                                                        This is the name of the group to send pick messages for specific profile
+                                                        This is the name of the group to send pick messages for specific profile when standard pick delivery strategy is enabled
                                                         </description>
                                                 </parameter>
                                                 <parameter name="pickSimulTargetGroup" type="String" default="PICK">
                                                         <description>
-                                                        This is the name of the group to which pick messages will be sent for a specific profile when running the real-time simulation.
+                                                        This is the name of the group to which pick messages will be sent for a specific profile when simulation pick delivery strategy is enabled
                                                         </description>
                                                 </parameter>
                                                 <parameter name="pickBulkTargetGroup" type="String" default="PICK">
                                                         <description>
-                                                        This is the name of the group to which pick messages will be sent for a specific profile when running the short-playback bulk.
+                                                        This is the name of the group to which pick messages will be sent for a specific profile when bulk pick delivery strategy is enabled.
                                                         </description>
                                                 </parameter>
                                                 <parameter name="locTargetGroup" type="String" default="LOCATION">
@@ -168,6 +188,11 @@
                                 <parameter name="maxTasksQueue" type="int" default="50">
                                         <description>
                                             Maximum number of tasks that are sent to the predictor at the same time.
+                                        </description>
+                                </parameter>
+                                <parameter name="numWorkers" type="int" default="1">
+                                        <description>
+                                            Number of groups to split stations. Each group will work in parallel without affecting the others. This helps prevent delays when working with a large number of stations and is usually only required when running more than 100 stations in real time.
                                         </description>
                                 </parameter>
                         </group>

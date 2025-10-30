@@ -72,7 +72,7 @@ class scmlpick(StreamApplication):
         self.tasks_ids_end = threading.Event()
         self.task_queue = queue.Queue()
         self.last_queue_size = 0
-        self.numWorkers = 4
+        # self.numWorkers = 4
         self.all_station_codes = []
         self.playback = False
         self.mseed = False
@@ -234,6 +234,11 @@ class scmlpick(StreamApplication):
             self.maxTasksQueue = self.configGetInt('ray.maxTasksQueue')
         except Exception as e:
             logging.info('maxTasksQueue could not be read : %s' % e)
+
+        try:
+            self.numWorkers = self.configGetInt('ray.numWorkers')
+        except Exception as e:
+            logging.info('numWorkers could not be read : %s' % e)
 
         #qcheck
         try:
@@ -401,15 +406,29 @@ class scmlpick(StreamApplication):
             "availability": availability
             }
 
-        self._pacer_init(
-            max_sleep=10,
-            max_global_delay=20.0,
-            recover_threshold=5.0,
-            catchup_factor=0.5,
-            grace=0.01
-        )
+        if self.standard:
+            logging.info("Standard pick delivery strategy active %s" % self.standard)
+        else:
+            logging.info("Standard pick delivery strategy not active %s" % self.standard)
 
-        self.start_bulk_sender(interval_s=1800)
+
+        if self.simulation:
+            logging.info("Simulation pick delivery strategy active %s" % self.simulation)
+            self._pacer_init(
+                max_sleep=10,
+                max_global_delay=20.0,
+                recover_threshold=5.0,
+                catchup_factor=0.5,
+                grace=0.01
+            )
+        else:
+            logging.info("Simulation pick delivery strategy not active %s" % self.simulation)
+
+        if self.bulk:
+            logging.info("Bulk pick delivery strategy active %s with %s s of interval" % (self.bulk,self.bulkInverval))
+            self.start_bulk_sender(interval_s=self.bulkInverval)
+        else:
+            logging.info("Bulk pick delivery strategy not active %s" % self.bulk)
 
         return True
 
@@ -1103,13 +1122,28 @@ class scmlpick(StreamApplication):
         profiles = []
 		# try:
         profiles = self.configGetStrings('pipelines.profiles')
-		# except:
-			# logging.error('Error loading profiles' )
-			# sys.exit(-1)
+
+        try:
+            self.standard = self.configGetBool('pipelines.Standard')
+        except Exception as e:
+            logging.info('Standard could not be read : %s' % e)
+        try:
+            self.simulation = self.configGetBool('pipelines.Simulation')
+        except Exception as e:
+            logging.info('Simulation could not be read : %s' % e)
+        try:
+            self.bulk = self.configGetBool('pipelines.Bulk')
+        except Exception as e:
+            logging.info('Bulk could not be read : %s' % e)
+        try:
+            self.bulkInverval = self.configGetInt('pipelines.bulkInverval')
+        except Exception as e:
+            logging.info('bulkInverval could not be read : %s' % e)
+
         if len(profiles) != 0:
             for profile in profiles:
                 profDic = {}
-                profDic['name'] = profile
+                profDic['name'] = profile              
                 try:
                     profDic['pickTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickTargetGroup')
                 except:
@@ -1117,7 +1151,6 @@ class scmlpick(StreamApplication):
                     logging.warning('setting default pickTargetGroup')
                     profDic['pickTargetGroup'] = ''
                     pass
-
                 try:
                     profDic['pickSimulTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickSimulTargetGroup')
                 except:
@@ -1125,7 +1158,6 @@ class scmlpick(StreamApplication):
                     logging.warning('setting default pickSimulTargetGroup')
                     profDic['pickSimulTargetGroup'] = ''
                     pass
-
                 try:
                     profDic['pickBulkTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickBulkTargetGroup')
                 except:
@@ -1133,7 +1165,6 @@ class scmlpick(StreamApplication):
                     logging.warning('setting default pickBulkTargetGroup')
                     profDic['pickBulkTargetGroup'] = ''
                     pass
-
                 try:
                     profDic['locTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.locTargetGroup')
                 except:
@@ -1893,9 +1924,11 @@ class scmlpick(StreamApplication):
                             # picks = self.scPhase(result)
                             picks = self.scPhase(result)
                             results.append(result)
-                            self._pacer_submit(picks)
-                            for pick in picks:
-                                self.add_pick_to_bulk(pick)
+                            if self.simulation:
+                                self._pacer_submit(picks)
+                            if self.bulk:
+                                for pick in picks:
+                                    self.add_pick_to_bulk(pick)
                         except Exception as task_error:
                             logging.error("Error while processing task {}".format(task_error))
                             logging.error(traceback.format_exc())
@@ -2046,26 +2079,28 @@ class scmlpick(StreamApplication):
         if self.playback:
             pass
         else:
-            self.sendPick(pick, 'asap')
-            self.sendComt(comm, pick)
+            if self.standard:
+                self.sendPick(pick, 'asap')
+                self.sendComt(comm, pick)
 
-            # pickRef = PickReference()
-            if phaseHint == 'S':
-                # pickRef.setPickID(pickData['PpickID'])
-                comt = Comment()
-                comt.setId('RefPickID')
-                comt.setText(str(pickData['PpickID']))
-                ci = CreationInfo()
-                ci.setCreationTime(Time().GMT())
-                comt.setCreationInfo(ci)
-                # print(pick.comment(0).id())
-                # print(pick.comment(0).text())
-                pick.add(comt)
-                self.sendComt(comt, pick)
+                # pickRef = PickReference()
+                if phaseHint == 'S':
+                    # pickRef.setPickID(pickData['PpickID'])
+                    comt = Comment()
+                    comt.setId('RefPickID')
+                    comt.setText(str(pickData['PpickID']))
+                    ci = CreationInfo()
+                    ci.setCreationTime(Time().GMT())
+                    comt.setCreationInfo(ci)
+                    # print(pick.comment(0).id())
+                    # print(pick.comment(0).text())
+                    pick.add(comt)
+                    self.sendComt(comt, pick)
+                else:
+                    # pickRef.setPickID(pick.publicID())
+                    pass
             else:
-                # pickRef.setPickID(pick.publicID())
                 pass
-
         return pick.publicID(), pick
 
     def writeXMLObj(self, obj):
@@ -2117,7 +2152,7 @@ class scmlpick(StreamApplication):
             #     for b in self.bindings
             #     if b.get("key") == netSta
             # }
-
+            logging.debug(f"Profile_to_target {profile_to_target}")
             targets = set()
             matched = False
             for b in self.bindings:
