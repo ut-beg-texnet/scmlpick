@@ -10,19 +10,19 @@ FDSN_URL = "http://scarchive.beg.utexas.edu:8880"
 
 PROFILES = {
     "DBW": dict(minlat=31.0, maxlat=32.0, minlon=-105.1, maxlon=-103.8),
-    "DBN": dict(minlat=31.5, maxlat=32.5, minlon=-104.4, maxlon=-102.8),
-    "DBS": dict(minlat=30.2, maxlat=31.9, minlon=-104.0, maxlon=-102.6)
+#    "DBN": dict(minlat=31.5, maxlat=32.5, minlon=-104.4, maxlon=-102.8),
+#    "DBS": dict(minlat=30.2, maxlat=31.9, minlon=-104.0, maxlon=-102.6)
 }
 STA2ADD_PER_PROFILE: Dict[str, List[str]] = {
     "DBW": ["TX_VHRN"],
-    "DBN": ["TX_ODSA", "TX_MB25", "TX_MB26", "4O_BB01", "TX_MNHN"],
-    "DBS": ["TX_VHRN"]
+#    "DBN": ["TX_ODSA", "TX_MB25", "TX_MB26", "4O_BB01", "TX_MNHN"],
+#    "DBS": ["TX_VHRN"]
 }
 
 FILTERS_PROFILE_FILES: Dict[str, str] = {
     "DBW": "delaware/dbw/stations_filters_max.inp",
-    "DBN": "delaware/dbn/stations_filters_max.inp",
-    "DBS": "delaware/dbs/stations_filters_max.inp"
+#    "DBN": "delaware/dbn/stations_filters_max.inp",
+#    "DBS": "delaware/dbs/stations_filters_max.inp"
 }
 
 OUT_DIR = "key"
