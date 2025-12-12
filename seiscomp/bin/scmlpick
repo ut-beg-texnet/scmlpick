@@ -1721,26 +1721,32 @@ class scmlpick(StreamApplication):
         # UTCDateTime es hashable vía timestamp
         return (net, sta, float(t0), float(t1))
 
+    # If needed to create ray tasks based on time chunks
+    # def chunk_time(self, starttime, endtime, dt, overlap):
+    #     times_list = []
+
+    #     start = starttime
+    #     end = start + dt
+
+    #     while start <= endtime:
+    #         if end >= endtime:
+    #             end = endtime
+    #             times_list.append([start, end])
+    #             break
+    #         times_list.append([start, end])
+    #         start = end - overlap
+    #         end = start + dt
+
+    #     logging.debug(f"[{datetime.now()}] {len(times_list)} time chunk(s) from {starttime} to {endtime} (dt={dt}secs, overlap={overlap}secs).")
+
+    #     return times_list
+
     def chunk_time(self, starttime, endtime, dt, overlap):
-        times_list = []
-
-        start = starttime
-        end = start + dt
-
-        while start <= endtime:
-            if end >= endtime:
-                end = endtime
-                times_list.append([start, end])
-                break
-            times_list.append([start, end])
-            start = end - overlap
-            end = start + dt
-
-        logging.debug(f"[{datetime.now()}] {len(times_list)} time chunk(s) from {starttime} to {endtime} (dt={dt}secs, overlap={overlap}secs).")
-
+        times_list = [[starttime, endtime]]
+        logging.debug(f"[{datetime.now()}] 1 time chunk from {starttime} to {endtime} (single window).")
         return times_list
 
-    def build_jobs_with_coverage(base_chunks, availability, min_coverage=0.8):
+    def build_jobs_with_coverage(base_chunks, availability, min_coverage=0.5):
         jobs = []
         for netsta, intervals in availability.items():
             net, sta = netsta.split(".")
@@ -1778,7 +1784,7 @@ class scmlpick(StreamApplication):
             availability = params['availability']
             times_list = params['time_list']
             logging.debug('Sending stations to EQCCT %s'% stations)
-            jobs = scmlpick.build_jobs_with_coverage(times_list,availability)
+            jobs = scmlpick.build_jobs_with_coverage(times_list,availability, min_coverage=0.5)
             # tasks = [[f"({i+1}/{len(times_list)})", times_list[i][0], times_list[i][1], stations] for i in range(len(times_list))]
         else:
             for trace in stream:
