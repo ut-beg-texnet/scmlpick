@@ -804,23 +804,47 @@ def _readnparray(stream, args, st_name):
         ['Z']        # Column 2
     ]
 
+    if args["playback"]:
+        time_shift = int(60 - (0.3 * 60))
+        current_time = start_time
+        while current_time < end_time:
+            window_end = current_time + 60
+            st_times.append(str(current_time).replace('T', ' ').replace('Z', ''))
+            npz_data = np.zeros((6000, 3))
 
-    st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
-    npz_data = np.zeros((6000, 3))
+            for col_idx, comp_options in enumerate(components_list):
+                for comp in comp_options:
+                    if comp in components:
+                        # tr = components[comp].copy().slice(start_time, end_time)
+                        tr = components[comp].copy().slice(current_time, window_end)
+                        data = tr.data[:6000]
+                        # Pad with zeros if data is shorter than 6000 samples
+                        if len(data) < 6000:
+                            data = np.pad(data, (0, 6000 - len(data)), 'constant')
+                        npz_data[:, col_idx] = data
+                        break  # Stop after finding the first available component
 
-    for col_idx, comp_options in enumerate(components_list):
-        for comp in comp_options:
-            if comp in components:
-                tr = components[comp].copy().slice(start_time, end_time)
-                data = tr.data[:6000]
-                # Pad with zeros if data is shorter than 6000 samples
-                if len(data) < 6000:
-                    data = np.pad(data, (0, 6000 - len(data)), 'constant')
-                npz_data[:, col_idx] = data
-                break  # Stop after finding the first available component
+            # key = str(start_time).replace('T', ' ').replace('Z', '')
+            key = str(current_time).replace('T', ' ').replace('Z', '')
+            data_set[key] = npz_data
+            current_time += time_shift
+    else:
+        st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
+        npz_data = np.zeros((6000, 3))
+        for col_idx, comp_options in enumerate(components_list):
+            for comp in comp_options:
+                if comp in components:
+                    tr = components[comp].copy().slice(start_time, end_time)
+                    data = tr.data[:6000]
+                    # Pad with zeros if data is shorter than 6000 samples
+                    if len(data) < 6000:
+                        data = np.pad(data, (0, 6000 - len(data)), 'constant')
+                    npz_data[:, col_idx] = data
+                    break  # Stop after finding the first available component
 
-    key = str(start_time).replace('T', ' ').replace('Z', '')
-    data_set[key] = npz_data
+        key = str(start_time).replace('T', ' ').replace('Z', '')
+        data_set[key] = npz_data
+
     meta["trace_start_time"] = st_times          
 
     # Metadata population with default placeholders for now
