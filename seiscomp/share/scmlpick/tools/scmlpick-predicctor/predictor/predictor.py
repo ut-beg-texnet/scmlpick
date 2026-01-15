@@ -703,44 +703,111 @@ def get_stream_filtered(net_sta: str,start,end,files):
 
 def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
                           default_band=(1.0, 45.0), pad_seconds=None):
-
     net, sta = net_sta.split(".")
 
     if isinstance(st_or_files, obspy.Stream):
-        st = st_or_files.select(network=net, station=sta)
+        st = st_or_files.select(network=net, station=sta).copy()
     else:
         st = obspy.Stream()
         for fn in st_or_files:
             try:
-                tmp = obspy.read(fn).select(network=net, station=sta)
-                if tmp: st += tmp
+                tmp = obspy.read(fn)
             except Exception:
-                pass
+                continue
+            tmp = tmp.select(network=net, station=sta)
+            if tmp:
+                st += tmp
+
     if not st:
         return None
+
+    for tr in st:
+        data = tr.data
+        try:
+            if np.ma.isMaskedArray(data):
+                data = data.filled(0)
+        except Exception:
+            pass
+        data = np.asarray(data)
+        if not np.isfinite(data).all():
+            bad = ~np.isfinite(data)
+            if bad.any():
+                data = data.copy()
+                data[bad] = 0
+        tr.data = data
+
+    pad = 10 if pad_seconds is None else pad_seconds
+    pre, post = t0 - pad, t1 + pad
+    st.trim(pre, post, pad=True, fill_value=0)
+
+    if not st:
+        return None
+
+    try:
+        st.merge(method=1, fill_value=0)  # method=1 === simple, mantiene gaps con fill_value
+    except Exception:
+        # fallback seguro
+        st.merge(fill_value=0)
+
+    if not st:
+        return None
+
+    try:
+        st.detrend("linear")
+    except Exception:
+        pass
+    try:
+        max_pct = min(0.05, 5.0 / (st[0].stats.delta * st[0].stats.npts))
+        st.taper(max_percentage=max_pct, type="cosine")
+    except Exception:
+        pass
 
     fmin, fmax = default_band
     if stations_filters:
         try:
-            f = next(d for d in stations_filters if d["key"].split(".",1)[-1] == sta)["filter"]
+            f = next(d for d in stations_filters if d["key"].split(".", 1)[-1] == sta)["filter"]
             fmin, fmax = sorted(float(x) for x in f[f.index("(")+1:f.index(")")].split(",")[1:3])
         except Exception:
             pass
 
-    pad = 10 if pad_seconds is None else pad_seconds
-    pre, post = t0 - pad, t1 + pad
-    if pad != 0:
-        st.trim(pre, post, pad=False)
-    if not st: return None
-    
-    st.merge()
-    st.detrend("linear")
-    max_pct = min(0.05, 5.0 / (st[0].stats.delta * st[0].stats.npts))
-    st.taper(max_percentage=max_pct, type="cosine")
-    st.filter("bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
-    print(f"Station: {net_sta} Filter: BW(2,{fmin},{fmax})")
-    if pad != 0:
-        st.trim(t0, t1, pad=False)
+    try:
+        st.filter("bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
+        print(f"Station: {net_sta} Filter: BW(2,{fmin},{fmax})")
+    except Exception:
+        new_st = obspy.Stream()
+        for tr in st:
+            try:
+                tr2 = tr.copy()
+                tr2.filter("bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
+                print(f"Station: {net_sta} Filter: BW(2,{fmin},{fmax})")
+                new_st += tr2
+            except Exception:
+                new_st += tr.copy()
+        st = new_st
+
+    try:
+        if any(abs(tr.stats.sampling_rate - 100.0) > 1e-6 for tr in st):
+            try:
+                st.interpolate(100.0, method="linear")
+            except Exception:
+                for tr in st:
+                    tr.resample(100.0)
+    except Exception:
+        pass
+
+    st.trim(t0, t1, pad=True, fill_value=0)
+
+    for tr in st:
+        data = np.asarray(tr.data)
+        if not np.isfinite(data).all():
+            bad = ~np.isfinite(data)
+            if bad.any():
+                data = data.copy()
+                data[bad] = 0
+            tr.data = data.astype(np.float32, copy=False)
+        else:
+            tr.data = data.astype(np.float32, copy=False)
+
     return st
 
 def _readnparray(stream, args, st_name):
@@ -804,6 +871,7 @@ def _readnparray(stream, args, st_name):
         ['Z']        # Column 2
     ]
 
+
     if args["playback"]:
         time_shift = int(60 - (0.3 * 60))
         current_time = start_time
@@ -815,7 +883,6 @@ def _readnparray(stream, args, st_name):
             for col_idx, comp_options in enumerate(components_list):
                 for comp in comp_options:
                     if comp in components:
-                        # tr = components[comp].copy().slice(start_time, end_time)
                         tr = components[comp].copy().slice(current_time, window_end)
                         data = tr.data[:6000]
                         # Pad with zeros if data is shorter than 6000 samples
@@ -824,13 +891,13 @@ def _readnparray(stream, args, st_name):
                         npz_data[:, col_idx] = data
                         break  # Stop after finding the first available component
 
-            # key = str(start_time).replace('T', ' ').replace('Z', '')
             key = str(current_time).replace('T', ' ').replace('Z', '')
             data_set[key] = npz_data
             current_time += time_shift
     else:
         st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
         npz_data = np.zeros((6000, 3))
+
         for col_idx, comp_options in enumerate(components_list):
             for comp in comp_options:
                 if comp in components:
@@ -844,7 +911,7 @@ def _readnparray(stream, args, st_name):
 
         key = str(start_time).replace('T', ' ').replace('Z', '')
         data_set[key] = npz_data
-
+    
     meta["trace_start_time"] = st_times          
 
     # Metadata population with default placeholders for now

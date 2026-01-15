@@ -1835,7 +1835,7 @@ class scmlpick(StreamApplication):
         logging.debug(f"[{datetime.now()}] Started station×time matrix ({total} jobs).")
 
         while tasks_queue:
-            tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=1.0)
+            tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
             for finished_task in tasks_finished:
                 try:
                     picks_parall = ray.get(finished_task)
@@ -1967,7 +1967,6 @@ class scmlpick(StreamApplication):
             # key = (net, sta, float(t0), float(t1))
             # _print_counts[key] += 1
             # print(f"[PICKER] pid={os.getpid()} task_id={tid} count={_print_counts[key]} job={task}", flush=True)
-            print(task)
             # try:
 
             if isinstance(params_ref, ray.ObjectRef):
