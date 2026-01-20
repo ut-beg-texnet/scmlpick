@@ -343,7 +343,7 @@ class scmlpick(StreamApplication):
         availability = {}
         if not self.playback and not self.mseed:
             self.updateStreams()
-            self.now = UTCDateTime(Time.GMT())
+            self.now = UTCDateTime(str(Time.GMT()))
             self.startTime = UTCDateTime(pd.to_datetime(str(self.now)) + timedelta(seconds=self.startLatency))
 
             # self.global_staSend_count = Value("i", 0)
@@ -961,7 +961,7 @@ class scmlpick(StreamApplication):
                         continue
 
 
-                    now = UTCDateTime(Time.GMT())
+                    now = UTCDateTime(str(Time.GMT()))
 
                     max_lag_seconds = 120
                     data_lag = now - endTime
@@ -1085,8 +1085,8 @@ class scmlpick(StreamApplication):
                     for i,trace in enumerate(streamPick):
                         sta = streamPick[i].stats.station
                         if sta in staSend and sta not in staSet:
-                            delayEnd = UTCDateTime(Time.GMT()) - trace.stats.endtime # Leave here but this time is different than the one use in oneMinuteStream (to evaluate).
-                            delayStart = UTCDateTime(Time.GMT()) - trace.stats.starttime # Same than oneMinuteStream this is the correct time to count the delay.
+                            delayEnd = UTCDateTime(str(Time.GMT())) - trace.stats.endtime # Leave here but this time is different than the one use in oneMinuteStream (to evaluate).
+                            delayStart = UTCDateTime(str(Time.GMT())) - trace.stats.starttime # Same than oneMinuteStream this is the correct time to count the delay.
                             if delayEnd >= self.firstWait or delayStart >= self.firstWait + self.windowLength:
                                 staSet.add(sta)
 
@@ -1409,7 +1409,7 @@ class scmlpick(StreamApplication):
 
         self.sendNow = False
         if self.wait:
-            delay = UTCDateTime(Time.GMT()) - self.sendTime
+            delay = UTCDateTime(str(Time.GMT())) - self.sendTime
             if delay >= self.maxWait:
                 self.wait = False
             elif delay >= self.secondWait and len(staSend) > 0:
@@ -1423,7 +1423,7 @@ class scmlpick(StreamApplication):
 
             else:
                 logging.info(f"Sending now due to first delay")
-                self.sendTime = UTCDateTime(Time.GMT())
+                self.sendTime = UTCDateTime(str(Time.GMT()))
                 self.wait = True
 
             tp = 'realtime'
@@ -1501,57 +1501,57 @@ class scmlpick(StreamApplication):
             q.put("RESUME")
 
     def recordDispatch(self, rec):
-        try:
-            if not rec.data():
-                return
+        # try:
+        if not rec.data():
+            return
 
-            dataObj = FloatArray.Cast(rec.data())
-            if not dataObj:
-                logging.debug("No data available in record.")
-                return
+        dataObj = FloatArray.Cast(rec.data())
+        if not dataObj:
+            logging.debug("No data available in record.")
+            return
 
-            # Extract raw data as a list of floats
-            data = [dataObj.get(i) for i in range(dataObj.size())]
+        # Extract raw data as a list of floats
+        data = [dataObj.get(i) for i in range(dataObj.size())]
 
-            # Extract record metadata
-            net = rec.networkCode()
-            sta = rec.stationCode()
-            loc = rec.locationCode()
-            chan = rec.channelCode()
-            sampFreq = rec.samplingFrequency()
-            startTime = rec.startTime()
-            endTime = rec.endTime()
+        # Extract record metadata
+        net = rec.networkCode()
+        sta = rec.stationCode()
+        loc = rec.locationCode()
+        chan = rec.channelCode()
+        sampFreq = rec.samplingFrequency()
+        startTime = rec.startTime()
+        endTime = rec.endTime()
 
-            # Create a serializable dictionary
-            rec_dict = {
-                "network": net,
-                "station": sta,
-                "location": loc,
-                "channel": chan,
-                "sampling_rate": sampFreq,
-                "starttime": UTCDateTime(startTime).timestamp,
-                "endtime": UTCDateTime(endTime).timestamp,
-                "data": data
-            }
+        # Create a serializable dictionary
+        rec_dict = {
+            "network": net,
+            "station": sta,
+            "location": loc,
+            "channel": chan,
+            "sampling_rate": sampFreq,
+            "starttime": UTCDateTime(str(startTime)).timestamp,
+            "endtime": UTCDateTime(str(endTime)).timestamp,
+            "data": data
+        }
 
-            # Find the corresponding worker group and send the record
-            net_sta = f"{net}.{sta}"
-            for i, group in enumerate(self.worker_station_groups):
-                if net_sta in group:
-                    max_lag_seconds = 600
-                    now = UTCDateTime.now()
-                    rec_end = UTCDateTime(endTime)
-                    lag = now - rec_end
+        # Find the corresponding worker group and send the record
+        net_sta = f"{net}.{sta}"
+        for i, group in enumerate(self.worker_station_groups):
+            if net_sta in group:
+                max_lag_seconds = 600
+                now = UTCDateTime.now()
+                rec_end = UTCDateTime(str(endTime))
+                lag = now - rec_end
 
-                    if lag > max_lag_seconds:
-                        logging.warning(f"[recordDispatch] Skipping delayed record {net}.{sta}.{chan}, lag={lag:.1f}s")
-                        return
+                if lag > max_lag_seconds:
+                    logging.warning(f"[recordDispatch] Skipping delayed record {net}.{sta}.{chan}, lag={lag:.1f}s")
+                    return
 
-                    self.worker_queues[i].put(rec_dict)
-                    break
+                self.worker_queues[i].put(rec_dict)
+                break
 
-        except Exception as e:
-            logging.error(f"Failed to dispatch record: {e}")
+        # except Exception as e:
+        #     logging.error(f"Failed to dispatch record: {e}")
 
     def checkCommonChan(self, tnew, streamPick, delayStream):
         if not tnew:
