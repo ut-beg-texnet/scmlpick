@@ -700,27 +700,77 @@ def get_stream_filtered(net_sta: str,start,end,files):
     print(f"Stream ready: {net}.{sta} in window [{start} .. {end}] with {len(st)} traces")
     return st
 
-
 def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
-                          default_band=(1.0, 45.0), pad_seconds=None):
+                          default_band=(1.0, 45.0)):
+
     net, sta = net_sta.split(".")
 
+    # -------- REAL-TIME --------
     if isinstance(st_or_files, obspy.Stream):
         st = st_or_files.select(network=net, station=sta).copy()
-    else:
-        st = obspy.Stream()
-        for fn in st_or_files:
+        if not st:
+            return None
+
+        # 1) Merge + detrend(linear) + demean
+        st.merge(fill_value=0)
+        st.detrend("linear")
+        st.detrend("demean")
+
+        # 2) Fixed 5-second taper (exact legacy behavior)
+        try:
+            max_percentage = 5.0 / (st[0].stats.delta * st[0].stats.npts)
+            st.taper(max_percentage=max_percentage, type="cosine")
+        except Exception:
+            pass
+
+        # 3) Bandpass per station (DF-like or list-of-dicts spec)
+        fmin, fmax = default_band
+        sta_name = st[0].stats.station
+        if stations_filters is not None:
+            # Try DataFrame-like
             try:
-                tmp = obspy.read(fn)
+                fmin = float(stations_filters[stations_filters.sta == sta_name].iloc[0]["hp"])
+                fmax = float(stations_filters[stations_filters.sta == sta_name].iloc[0]["lp"])
             except Exception:
-                continue
-            tmp = tmp.select(network=net, station=sta)
-            if tmp:
-                st += tmp
+                # Try list-of-dicts with "key" and "filter"
+                try:
+                    filt = next(d for d in stations_filters if d["key"].split(".", 1)[-1] == sta_name)["filter"]
+                    fmin, fmax = sorted(float(x) for x in filt[filt.index("(")+1:filt.index(")")].split(",")[1:3])
+                except Exception:
+                    pass
+        st.filter(type="bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
+
+        # 4) Resample to 100 Hz if required (interpolate first, fallback to resample)
+        if any(tr.stats.sampling_rate != 100.0 for tr in st):
+            try:
+                st.interpolate(100.0, method="linear")
+            except Exception:
+                for tr in st:
+                    tr.resample(100.0)
+
+        # 5) Final trim to common [min, max] (legacy)
+        st.trim(min(tr.stats.starttime for tr in st),
+                max(tr.stats.endtime for tr in st),
+                pad=True, fill_value=0)
+        return st
+
+    # -------- PLAYBACK: robust load/clean/filter + exact trim to [t0, t1] --------
+    st = obspy.Stream()
+
+    # Load and select only the target net.sta
+    for fn in st_or_files:
+        try:
+            tmp = obspy.read(fn)
+        except Exception:
+            continue
+        tmp = tmp.select(network=net, station=sta)
+        if tmp:
+            st += tmp
 
     if not st:
         return None
 
+    # Clean masked arrays and non-finite values before merge/filter
     for tr in st:
         data = tr.data
         try:
@@ -736,202 +786,196 @@ def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
                 data[bad] = 0
         tr.data = data
 
-    pad = 10 if pad_seconds is None else pad_seconds
-    pre, post = t0 - pad, t1 + pad
-    st.trim(pre, post, pad=True, fill_value=0)
-
-    if not st:
-        return None
-
+    # Merge with fill_value=0 (bridge gaps with zeros)
     try:
-        st.merge(method=1, fill_value=0)  # method=1 === simple, mantiene gaps con fill_value
+        st.merge(method=1, fill_value=0)  # method=1 keeps gaps simple; fill with zeros
     except Exception:
-        # fallback seguro
         st.merge(fill_value=0)
 
-    if not st:
-        return None
-
+    # Detrend + demean
     try:
         st.detrend("linear")
+        st.detrend("demean")
     except Exception:
         pass
+
+    # Fixed 5-second taper (stable across window lengths)
     try:
-        max_pct = min(0.05, 5.0 / (st[0].stats.delta * st[0].stats.npts))
-        st.taper(max_percentage=max_pct, type="cosine")
+        max_percentage = 5.0 / (st[0].stats.delta * st[0].stats.npts)
+        st.taper(max_percentage=max_percentage, type="cosine")
     except Exception:
         pass
 
+    # Station-specific bandpass if available
     fmin, fmax = default_band
-    if stations_filters:
+    if stations_filters is not None:
+        # Try list-of-dicts first
         try:
-            f = next(d for d in stations_filters if d["key"].split(".", 1)[-1] == sta)["filter"]
-            fmin, fmax = sorted(float(x) for x in f[f.index("(")+1:f.index(")")].split(",")[1:3])
+            filt = next(d for d in stations_filters if d["key"].split(".", 1)[-1] == sta)["filter"]
+            fmin, fmax = sorted(float(x) for x in filt[filt.index("(")+1:filt.index(")")].split(",")[1:3])
         except Exception:
-            pass
+            # Fallback to DataFrame-like
+            try:
+                fmin = float(stations_filters[stations_filters.sta == sta].iloc[0]["hp"])
+                fmax = float(stations_filters[stations_filters.sta == sta].iloc[0]["lp"])
+            except Exception:
+                pass
 
+    # Apply bandpass (fallback per-trace if needed)
     try:
         st.filter("bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
-        print(f"Station: {net_sta} Filter: BW(2,{fmin},{fmax})")
     except Exception:
         new_st = obspy.Stream()
         for tr in st:
             try:
                 tr2 = tr.copy()
                 tr2.filter("bandpass", freqmin=fmin, freqmax=fmax, corners=2, zerophase=True)
-                print(f"Station: {net_sta} Filter: BW(2,{fmin},{fmax})")
                 new_st += tr2
             except Exception:
                 new_st += tr.copy()
         st = new_st
 
-    try:
-        if any(abs(tr.stats.sampling_rate - 100.0) > 1e-6 for tr in st):
-            try:
-                st.interpolate(100.0, method="linear")
-            except Exception:
-                for tr in st:
-                    tr.resample(100.0)
-    except Exception:
-        pass
+    # Resample to 100 Hz if required
+    if any(abs(tr.stats.sampling_rate - 100.0) > 1e-6 for tr in st):
+        try:
+            st.interpolate(100.0, method="linear")
+        except Exception:
+            for tr in st:
+                tr.resample(100.0)
 
+    # Final exact trim to [t0, t1] (no extended window in playback)
     st.trim(t0, t1, pad=True, fill_value=0)
 
+    # Sanitize to float32 and ensure finite values
     for tr in st:
-        data = np.asarray(tr.data)
-        if not np.isfinite(data).all():
-            bad = ~np.isfinite(data)
+        arr = np.asarray(tr.data)
+        if not np.isfinite(arr).all():
+            bad = ~np.isfinite(arr)
             if bad.any():
-                data = data.copy()
-                data[bad] = 0
-            tr.data = data.astype(np.float32, copy=False)
-        else:
-            tr.data = data.astype(np.float32, copy=False)
+                arr = arr.copy()
+                arr[bad] = 0
+        tr.data = arr.astype(np.float32, copy=False)
 
     return st
 
+
 def _readnparray(stream, args, st_name):
-
-    # ' read miniseed files and from input path and returns 3 dictionaries of numpy arrays, meta data, and time slice info'
-    # if args["playback"]:
-    #     st = get_stream_filtered(args['station'],args['t_ini'],args['t_end'],args['files'])
-    # else:
-    #     'Read data from record stream and returns 3 dictionaries of numpy arrays, meta data, and time slice info'
-    #     #output_wf = f""
-    #     st = obspy.Stream()
-    #     st = stream
-
+    # 1) Station-prepared Stream
     if args["playback"]:
-        st = prepare_station_chunk(args["files"], args["station"], args["t_ini"], args["t_end"],
-                                stations_filters=args.get("stations_filters"))
+        st = prepare_station_chunk(
+            args["files"], args["station"], args["t_ini"], args["t_end"],
+            stations_filters=args.get("stations_filters")
+        )
     else:
-        st = prepare_station_chunk(stream, args["station"], args["t_ini"], args["t_end"],
-                                stations_filters=args.get("stations_filters"),pad_seconds=0)
+        st = prepare_station_chunk(
+            stream, args["station"], args["t_ini"], args["t_end"],
+            stations_filters=args.get("stations_filters")
+        )
     if not st:
         raise RuntimeError("Empty stream: no traces loaded.")
 
-    start_time = min([tr.stats.starttime for tr in st])
-    end_time = max([tr.stats.endtime for tr in st])
+    span_start = min(tr.stats.starttime for tr in st)
+    span_end   = max(tr.stats.endtime   for tr in st)
 
-    # Interpolate if necessary
-    if len([tr for tr in st if tr.stats.sampling_rate != 100.0]) != 0:
-        try:
-            st.interpolate(100, method="linear")
-        except Exception:
-            st=_resampling(st)
-
-    # Trim stream to the common start and end times
-    st.trim(start_time, end_time, pad=True, fill_value=0)
     if not args["playback"]:
-        start_time = start_time+args['filterShift']
+        span_start = span_start + args['filterShift']
 
+    # Map station components
+    components = {tr.stats.channel[-1]: tr for tr in st}
     st_Z = st.select(channel="*Z")
-    if len(st_Z) > 0:
-        for tr in st_Z:
-            channelOut = tr.stats.channel
-    else:
-        channelOut = st[0].stats.channel
+    channel_out = st_Z[0].stats.channel if len(st_Z) > 0 else st[0].stats.channel
 
-    # Prepare metadata
-    meta = {"start_time":start_time,
-            "end_time":end_time,
-            # "trace_name":f"{f.split('/')[-2]}/{f.split('/')[-1]}"
-            "trace_name":f"{st_name}.{st[0].stats.location}.{channelOut}"
-             } 
+    meta = {
+        "start_time": span_start,
+        "end_time":   span_end,
+        "trace_name": f"{st_name}.{st[0].stats.location}.{channel_out}"
+    }
 
-    # Prepare component mapping and types
     data_set = {}
     st_times = []
-    components = {tr.stats.channel[-1]: tr for tr in st}
 
-    # Define preferred components for each column
+    # Preferred component mapping per column
     components_list = [
         ['E', '1'],  # Column 0
         ['N', '2'],  # Column 1
         ['Z']        # Column 2
     ]
 
-
+    # 3) Window construction
     if args["playback"]:
-        time_shift = int(60 - (0.3 * 60))
-        current_time = start_time
-        while current_time < end_time:
-            window_end = current_time + 60
-            st_times.append(str(current_time).replace('T', ' ').replace('Z', ''))
-            npz_data = np.zeros((6000, 3))
+        # 60 s windows with overlap
+        step_sec = int(60 - (args.get('overlap', 0.0) * 60))
+        step_sec = max(1, step_sec)
 
+        current = span_start
+        # Ensure monotonically increasing windows
+        while current < span_end:
+            window_end = current + 60
+            st_times.append(str(current).replace('T', ' ').replace('Z', ''))
+
+            npz_data = np.zeros((6000, 3))
             for col_idx, comp_options in enumerate(components_list):
                 for comp in comp_options:
                     if comp in components:
-                        tr = components[comp].copy().slice(current_time, window_end)
+                        tr = components[comp].copy().slice(current, window_end, nearest_sample=False)
                         data = tr.data[:6000]
-                        # Pad with zeros if data is shorter than 6000 samples
                         if len(data) < 6000:
                             data = np.pad(data, (0, 6000 - len(data)), 'constant')
                         npz_data[:, col_idx] = data
-                        break  # Stop after finding the first available component
+                        break
 
-            key = str(current_time).replace('T', ' ').replace('Z', '')
+            key = str(current).replace('T', ' ').replace('Z', '')
             data_set[key] = npz_data
-            current_time += time_shift
-    else:
-        st_times.append(str(start_time).replace('T', ' ').replace('Z', ''))
-        npz_data = np.zeros((6000, 3))
+            current += step_sec
 
+    else:
+        # Real-time: single window.
+        # If we have at least 60 s, prefer the last 60 s; otherwise use the full span.
+        if (span_end - span_start) >= 60:
+            win_start = span_end - 60
+            win_end   = span_end
+        else:
+            win_start = span_start
+            win_end   = span_end
+
+        st_times.append(str(win_start).replace('T', ' ').replace('Z', ''))
+        npz_data = np.zeros((6000, 3))
         for col_idx, comp_options in enumerate(components_list):
             for comp in comp_options:
                 if comp in components:
-                    tr = components[comp].copy().slice(start_time, end_time)
+                    tr = components[comp].copy().slice(win_start, win_end, nearest_sample=False)
                     data = tr.data[:6000]
-                    # Pad with zeros if data is shorter than 6000 samples
                     if len(data) < 6000:
                         data = np.pad(data, (0, 6000 - len(data)), 'constant')
                     npz_data[:, col_idx] = data
-                    break  # Stop after finding the first available component
+                    break
 
-        key = str(start_time).replace('T', ' ').replace('Z', '')
+        key = str(win_start).replace('T', ' ').replace('Z', '')
         data_set[key] = npz_data
-    
-    meta["trace_start_time"] = st_times          
 
-    # Metadata population with default placeholders for now
+    meta["trace_start_time"] = st_times
+
+    # 4) Populate basic metadata
     try:
-        meta["receiver_code"]=st[0].stats.station
-        meta["instrument_type"]=0
-        meta["network_code"]=0
-        meta["receiver_latitude"]=0
-        meta["receiver_longitude"]=0
-        meta["receiver_elevation_m"]=0
+        meta.update({
+            "receiver_code": st[0].stats.station,
+            "instrument_type": 0,
+            "network_code": 0,
+            "receiver_latitude": 0,
+            "receiver_longitude": 0,
+            "receiver_elevation_m": 0
+        })
     except Exception:
-        meta["receiver_code"]=st_name
-        meta["instrument_type"]=0
-        meta["network_code"]=0
-        meta["receiver_latitude"]=0
-        meta["receiver_longitude"]=0
-        meta["receiver_elevation_m"]=0
-                    
-    return meta, data_set
+        meta.update({
+            "receiver_code": st_name,
+            "instrument_type": 0,
+            "network_code": 0,
+            "receiver_latitude": 0,
+            "receiver_longitude": 0,
+            "receiver_elevation_m": 0
+        })
 
+    return meta, data_set
 
 class PreLoadGeneratorTest(tf.keras.utils.Sequence):
     
