@@ -2037,7 +2037,8 @@ class scmlpick(StreamApplication):
         comm.setText(propValue)
         ci = CreationInfo()
         ci.setCreationTime(Time().GMT())
-        ci.setAuthor(self.name())
+        ci.setAgencyID(self.agencyID())
+        ci.setAuthor(self.author())
         comm.setCreationInfo(ci)
         pick.add(comm)
         net_sta = f"{pickData['trace_name'].split('.')[0]}.{pickData['trace_name'].split('.')[1]}"
