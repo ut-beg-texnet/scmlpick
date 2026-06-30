@@ -20,8 +20,8 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 import tensorflow as tf
 #tf.config.optimizer.set_jit(True)
-tf.config.threading.set_intra_op_parallelism_threads(12)
-tf.config.threading.set_inter_op_parallelism_threads(8)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 import warnings
 warnings.filterwarnings("ignore")
 from silence_tensorflow import silence_tensorflow
@@ -428,20 +428,6 @@ def tf_environ(gpu_id, gpu_limit=None):
     if gpu_id != -1:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         print(f"[{datetime.now()}] GPU processing enabled.")
-        # gpus = tf.config.experimental.list_physical_devices('GPU')
-        # if gpus:
-        #     try:
-        #         for gpu in gpus:
-        #             tf.config.experimental.set_memory_growth(gpu, True)
-        #             if gpu_limit:
-        #                 tf.config.experimental.set_virtual_device_configuration(gpu,
-        #                                                                         [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=gpu_limit*1024)])
-        #         print(f"[{datetime.now()}] GPU processing enabled.")
-        #     except RuntimeError as e:
-        #         print(e)
-        # else:
-        #     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-        #     print(f"[{datetime.now()}] No GPUs found, using CPU.")
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
         print(f"[{datetime.now()}] GPU processing disabled, using CPU.")
@@ -449,20 +435,9 @@ def tf_environ(gpu_id, gpu_limit=None):
 
 
 def load_eqcct_model(input_modelP, input_modelS):
-    # print(f"[{datetime.now()}] Loading EQCCT model.")
-    
-    # with open(log_file, mode="w", buffering=1) as log:
-    #     log.write(f"*** Loading the model ...\n")
 
     # Model CCT
     inputs = tf.keras.layers.Input(shape=input_shape,name='input')
-
-    #featuresP = create_cct_model(inputs)
-    #featuresS = create_cct_model(inputs)
-    #logitp  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_P1')(featuresP)
-    #logits  = Dense(6000 ,activation='sigmoid', kernel_initializer='he_normal',name='picker_S1')(featuresS)
-    #logitp = tf.keras.layers.Reshape((6000,1), name='picker_P')(logitp)
-    #logits = tf.keras.layers.Reshape((6000,1), name='picker_S')(logits)
 
     featuresP = create_cct_modelP(inputs)
     featuresP = tf.keras.layers.Reshape((6000,1))(featuresP)
@@ -481,8 +456,6 @@ def load_eqcct_model(input_modelP, input_modelS):
     summary_output = StringIO()
     with redirect_stdout(summary_output):
         model.summary()
-    # log.write(summary_output.getvalue())
-    # log.write('\n')
 
     sgd = tf.keras.optimizers.Adam()
     model.compile(optimizer=sgd,
@@ -503,7 +476,7 @@ def mseed_predictor(stream=None,
               P_threshold=0.1,
               S_threshold=0.1, 
               normalization_mode='std',
-              overlap = 0.3,
+              overlap = 30,
               batch_size=500,
               overwrite=False,
               p_model = None,
@@ -538,69 +511,6 @@ def mseed_predictor(stream=None,
     "playback":playback
     }
 
-    # picks = []
-    # out_dir = os.path.join(os.getcwd(), str(args['output_dir']))
-
-    # # with open(log_file, mode="w", buffering=1) as log:
-    # try:
-    #     station_list = stations2use
-    #     station_list = sorted(set(station_list))
-    # except Exception as exp:
-    #     # log.write(f"{exp}")
-    #     return
-    # # log.write(f"[{datetime.now()}] {len(station_list)} stations in the record stream.")
-    
-    # # tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args, out_dir] for i in range(len(station_list))]
-    # tasks = [[stream.select(network=station_list[i].split('.')[0], station=station_list[i].split('.')[1]), f"({i+1}/{len(station_list)})", station_list[i], args] for i in range(len(station_list))]
-
-    # if not tasks:
-    #     return
-    
-    # #parallel_predict(tasks[0])
-    # # Submit tasks to ray in a queue
-    # tasks_queue = []
-    # # log.write(f"[{datetime.now()}] Started EQCCT picking process.\n")
-    # for i in range(len(tasks)):
-    #     while True:
-    #         # Add new task to queue while max is not reached
-    #         if len(tasks_queue) < maxStsTasksQueue:
-    #             tasks_queue.append(parallel_predict.remote(tasks[i]))
-    #             break
-    #         # If there are more tasks than maximum, just process them
-    #         else:
-    #             tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
-    #             for finished_task in tasks_finished:
-    #                 picks_parall = ray.get(finished_task)
-    #                 for pick in picks_parall['picks']:
-    #                     picks.append(pick)
-    #                 # log.write(f"{picks_parall['info']}")
-
-    # # After adding all the tasks to queue, process what's left
-    # while tasks_queue:
-    #     tasks_finished, tasks_queue = ray.wait(tasks_queue, num_returns=1, timeout=None)
-    #     for finished_task in tasks_finished:
-    #         picks_parall = ray.get(finished_task)
-    #         for pick in picks_parall['picks']:
-    #             picks.append(pick)
-    #         # log.write(f"{picks_parall['info']}")
-    # # # with ThreadPoolExecutor(max_workers=min([round(os.cpu_count()*0.25), len(tasks)])) as executor:
-    # # with ThreadPoolExecutor(max_workers=5) as executor:
-    # #     futures = [executor.submit(parallel_predict, task) for task in tasks]
-    # #     for future in as_completed(futures):
-    # #         result_dict = future.result()
-    # #         log_entry = result_dict['info']
-    # #         picks_parall = result_dict['picks']
-    # #         picks.extend(picks_parall)
-    # #         log.write(log_entry + "")
-    # # log.write("------- END OF FILE -------")
-
-    # return {
-    #     # "info": f"{net}.{sta} {t0}–{t1} done ({len(picks)} picks)",
-    #     "info": f"({len(picks)} picks)",
-    #     "picks": picks,
-    # }
-
-    # task = [stream.select(network=station2use.split('.')[0], station=station2use.split('.')[1]), station2use, args]
     if playback:
         task = [stream,net_sta,args]
     else:
@@ -634,22 +544,12 @@ def parallel_predict(predict_args):
             #log.write(np.shape(Ppicks))
 
             #### Add option to activate write picks in csv file
-            # detection_memory,prob_memory=_output_writter_prediction(meta, csvPr_gen, Ppicks, Pprob, Spicks, Sprob, detection_memory,prob_memory,predict_writer, ix,len(predP),len(predS))
             pick,detection_memory,prob_memory=_output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory, prob_memory, ix,len(predP),len(predS))
             picks.append(pick)
                                         
         end_Predicting = time.time() 
         delta = (end_Predicting - start_Predicting) 
-        # hour = int(delta / 3600)
-        # delta -= hour * 3600
-        # minute = int(delta / 60)
-        # delta -= minute * 60
-        # seconds = delta     
-                        
-        # dd = pd.read_csv(os.path.join(save_dir,'X_prediction_results.csv'))
-        #print(f"[{datetime.now()}] {pos} {st}: Finished the prediction in {round(delta,2)}s.")
-        # return f"[{datetime.now()}] {pos} {st}: Finished the prediction in {round(delta,2)}s."
-        # info = f"[{datetime.now()}] {pos} {st}: Finished the prediction in {round(delta,2)}s."
+        
         info = f"[{datetime.now()}] {st}: Finished the prediction in {round(delta,2)}s."
         return {
             'picks':picks,
@@ -664,6 +564,38 @@ def parallel_predict(predict_args):
         #     i += 1
         #     time.sleep(5)
 
+def safe_trim_edge_pad(tr, starttime, endtime, nearest_sample=False):
+    tr_cut = tr.copy()
+
+    tr_cut.trim(
+        starttime=starttime,
+        endtime=endtime,
+        pad=False,
+        nearest_sample=nearest_sample
+    )
+
+    if tr_cut.stats.npts == 0:
+        return None
+
+    delta = tr_cut.stats.delta
+    expected_npts = int(round((endtime - starttime) / delta)) + 1
+
+    pad_left = int(round((tr_cut.stats.starttime - starttime) / delta))
+    pad_left = max(0, pad_left)
+
+    pad_right = expected_npts - tr_cut.stats.npts - pad_left
+    pad_right = max(0, pad_right)
+
+    data = np.asarray(tr_cut.data)
+
+    if pad_left > 0 or pad_right > 0:
+        data = np.pad(data, (pad_left, pad_right), mode="edge")
+
+    tr_cut.data = data[:expected_npts]
+    tr_cut.stats.starttime = starttime
+
+    return tr_cut
+
 def get_stream_filtered(net_sta: str,start,end,files):
 
     net, sta  = net_sta.split(".")
@@ -676,11 +608,13 @@ def get_stream_filtered(net_sta: str,start,end,files):
             continue
 
         try:
-            temp_st.merge(fill_value=0)
+            # temp_st.merge(fill_value=0)
+            temp_st.merge(method=1, fill_value="interpolate")
         except Exception as e:
             print(f"[MERGE ERROR] {fn}: {e!r}")
             try:
-                temp_st.merge(fill_value=0)
+                # temp_st.merge(fill_value=0)
+                temp_st.merge(method=1, fill_value="interpolate")
             except Exception as e2:
                 print(f"[MERGE RETRY FAILED] {fn}: {e2!r}")
 
@@ -688,10 +622,14 @@ def get_stream_filtered(net_sta: str,start,end,files):
         temp_st = temp_st.select(network=net, station=sta)
         if temp_st:
             st += temp_st
-    # try:
-    st.trim(start, end, pad=True, fill_value=0)
-    # except Exception as e:
-    #     print(f"[TRIM ERROR] Station={net}.{sta} Window=[{start} .. {end}] -> {e!r}")
+
+    st_trimmed = obspy.Stream()
+    for tr in st:
+        tr_new = safe_trim_edge_pad(tr, start, end)
+        if tr_new is not None:
+            st_trimmed.append(tr_new)
+    st = st_trimmed
+
 
     if len(st) == 0:
         print(f"Empty stream for {net}.{sta} in window [{start} .. {end}]")
@@ -712,7 +650,8 @@ def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
             return None
 
         # 1) Merge + detrend(linear) + demean
-        st.merge(fill_value=0)
+        # st.merge(fill_value=0)
+        st.merge(method=1, fill_value="interpolate")
         st.detrend("linear")
         st.detrend("demean")
 
@@ -747,11 +686,16 @@ def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
             except Exception:
                 for tr in st:
                     tr.resample(100.0)
+        
+        global_start = min(tr.stats.starttime for tr in st)
+        global_end = max(tr.stats.endtime for tr in st)
+        new_st = obspy.Stream()
+        for tr in st:
+            tr_new = safe_trim_edge_pad(tr, global_start, global_end)
+            if tr_new is not None:
+                new_st.append(tr_new)
+        st = new_st
 
-        # 5) Final trim to common [min, max] (legacy)
-        st.trim(min(tr.stats.starttime for tr in st),
-                max(tr.stats.endtime for tr in st),
-                pad=True, fill_value=0)
         return st
 
     # -------- PLAYBACK: robust load/clean/filter + exact trim to [t0, t1] --------
@@ -788,9 +732,13 @@ def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
 
     # Merge with fill_value=0 (bridge gaps with zeros)
     try:
-        st.merge(method=1, fill_value=0)  # method=1 keeps gaps simple; fill with zeros
+        st.merge(method=1, fill_value="interpolate")
     except Exception:
-        st.merge(fill_value=0)
+        st.merge(fill_value="interpolate")
+    # try:
+    #     st.merge(method=1, fill_value=0)  # method=1 keeps gaps simple; fill with zeros
+    # except Exception:
+    #     st.merge(fill_value=0)
 
     # Detrend + demean
     try:
@@ -843,8 +791,12 @@ def prepare_station_chunk(st_or_files, net_sta, t0, t1, stations_filters=None,
             for tr in st:
                 tr.resample(100.0)
 
-    # Final exact trim to [t0, t1] (no extended window in playback)
-    st.trim(t0, t1, pad=True, fill_value=0)
+    new_st = obspy.Stream()
+    for tr in st:
+        tr_new = safe_trim_edge_pad(tr, t0, t1)
+        if tr_new is not None:
+            new_st.append(tr_new)
+    st = new_st
 
     # Sanitize to float32 and ensure finite values
     for tr in st:
@@ -903,21 +855,39 @@ def _readnparray(stream, args, st_name):
 
     # 3) Window construction
     if args["playback"]:
-        # 60 s windows with overlap
-        step_sec = int(60 - (args.get('overlap', 0.0) * 60))
+
+        # 60 s windows with overlap given in seconds
+        window_sec = 60.0
+        overlap_sec = float(args.get("overlap", 0.0))
+
+        if overlap_sec < 0:
+            overlap_sec = 0.0
+
+        if overlap_sec >= window_sec:
+            raise ValueError(
+                f"Invalid overlap={overlap_sec}. "
+                f"Overlap must be smaller than the window length ({window_sec} s)."
+            )
+
+        step_sec = int(round(window_sec - overlap_sec))
         step_sec = max(1, step_sec)
 
         current = span_start
-        # Ensure monotonically increasing windows
-        while current < span_end:
-            window_end = current + 60
-            st_times.append(str(current).replace('T', ' ').replace('Z', ''))
 
+        while current < span_end:
+            window_end = current + window_sec
+
+            st_times.append(str(current).replace('T', ' ').replace('Z', ''))
             npz_data = np.zeros((6000, 3))
+
             for col_idx, comp_options in enumerate(components_list):
                 for comp in comp_options:
                     if comp in components:
-                        tr = components[comp].copy().slice(current, window_end, nearest_sample=False)
+                        tr = components[comp].copy().slice(
+                            current,
+                            window_end,
+                            nearest_sample=False
+                        )
                         data = tr.data[:6000]
                         if len(data) < 6000:
                             data = np.pad(data, (0, 6000 - len(data)), 'constant')
@@ -926,6 +896,7 @@ def _readnparray(stream, args, st_name):
 
             key = str(current).replace('T', ' ').replace('Z', '')
             data_set[key] = npz_data
+
             current += step_sec
 
     else:
@@ -1068,125 +1039,6 @@ class PreLoadGeneratorTest(tf.keras.utils.Sequence):
             X[i, :, :] = data                                                           
                            
         return X      
-    
-
-def _output_writter_prediction(meta, csvPr, Ppicks, Pprob, Spicks, Sprob, detection_memory,prob_memory,predict_writer, idx, cq, cqq):
-
-    """ 
-    
-    Writes the detection & picking results into a CSV file.
-
-    Parameters
-    ----------
-    dataset: hdf5 obj
-        Dataset object of the trace.
-
-    predict_writer: obj
-        For writing out the detection/picking results in the CSV file. 
-       
-    csvPr: obj
-        For writing out the detection/picking results in the CSV file.  
-
-    matches: dic
-        It contains the information for the detected and picked event.  
-  
-    snr: list of two floats
-        Estimated signal to noise ratios for picked P and S phases.   
-    
-    detection_memory : list
-        Keep the track of detected events.          
-        
-    Returns
-    -------   
-    detection_memory : list
-        Keep the track of detected events.  
-        
-        
-    """      
-
-    station_name = meta["receiver_code"]
-    station_lat = meta["receiver_latitude"]
-    station_lon = meta["receiver_longitude"]
-    station_elv = meta["receiver_elevation_m"]
-    start_time = meta["trace_start_time"][idx]
-    station_name = "{:<4}".format(station_name)
-    network_name = meta["network_code"]
-    network_name = "{:<2}".format(network_name)
-    instrument_type = meta["instrument_type"]
-    instrument_type = "{:<2}".format(instrument_type)  
-
-    try:
-        start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S.%f')
-    except Exception:
-        start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-        
-    def _date_convertor(r):  
-        if isinstance(r, str):
-            mls = r.split('.')
-            if len(mls) == 1:
-                new_t = datetime.strptime(r, '%Y-%m-%d %H:%M:%S')
-            else:
-                new_t = datetime.strptime(r, '%Y-%m-%d %H:%M:%S.%f')
-        else:
-            new_t = r
-            
-        return new_t
-    
-    p_time = []
-    p_prob = []
-    PdateTime = []
-    if Ppicks[0]!=None: 
-#for iP in range(len(Ppicks)):
-#if Ppicks[iP]!=None: 
-        p_time.append(start_time+timedelta(seconds= Ppicks[0]/100))
-        p_prob.append(Pprob[0])
-        PdateTime.append(_date_convertor(start_time+timedelta(seconds= Ppicks[0]/100)))
-        detection_memory.append(p_time) 
-        prob_memory.append(p_prob)  
-    else:          
-        p_time.append(None)
-        p_prob.append(None)
-        PdateTime.append(None)
-
-    s_time = []
-    s_prob = []    
-    SdateTime=[]
-    if Spicks[0]!=None: 
-#for iS in range(len(Spicks)):
-#if Spicks[iS]!=None: 
-        s_time.append(start_time+timedelta(seconds= Spicks[0]/100))
-        s_prob.append(Sprob[0])
-        SdateTime.append(_date_convertor(start_time+timedelta(seconds= Spicks[0]/100)))
-    else:
-        s_time.append(None)
-        s_prob.append(None)
-        SdateTime.append(None)
-
-    SdateTime = np.array(SdateTime)
-    s_prob = np.array(s_prob)
-    
-    p_prob = np.array(p_prob)
-    PdateTime = np.array(PdateTime)
-        
-    predict_writer.writerow([meta["trace_name"], 
-                     network_name,
-                     station_name, 
-                     instrument_type,
-                     station_lat, 
-                     station_lon,
-                     station_elv,
-                     PdateTime[0], 
-                     p_prob[0],
-                     SdateTime[0], 
-                     s_prob[0]
-                     ]) 
-
-
-
-    csvPr.flush()                
-
-
-    return detection_memory,prob_memory  
 
 def _output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory,prob_memory, idx, cq, cqq):
 
@@ -1248,8 +1100,8 @@ def _output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory
     p_prob = []
     PdateTime = []
     if Ppicks[0]!=None: 
-#for iP in range(len(Ppicks)):
-#if Ppicks[iP]!=None: 
+    #for iP in range(len(Ppicks)):
+    #if Ppicks[iP]!=None: 
         p_time.append(start_time+timedelta(seconds= Ppicks[0]/100))
         p_prob.append(Pprob[0])
         PdateTime.append(_date_convertor(start_time+timedelta(seconds= Ppicks[0]/100)))
@@ -1264,8 +1116,8 @@ def _output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory
     s_prob = []    
     SdateTime=[]
     if Spicks[0]!=None: 
-#for iS in range(len(Spicks)):
-#if Spicks[iS]!=None: 
+    #for iS in range(len(Spicks)):
+    #if Spicks[iS]!=None: 
         s_time.append(start_time+timedelta(seconds= Spicks[0]/100))
         s_prob.append(Sprob[0])
         SdateTime.append(_date_convertor(start_time+timedelta(seconds= Spicks[0]/100)))
@@ -1295,54 +1147,6 @@ def _output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory
     }          
 
     return pick,detection_memory,prob_memory  
-
-
-def _get_snr(data, pat, window=200):
-    
-    """ 
-    
-    Estimates SNR.
-    
-    Parameters
-    ----------
-    data : numpy array
-        3 component data.    
-        
-    pat: positive integer
-        Sample point where a specific phase arrives. 
-        
-    window: positive integer, default=200
-        The length of the window for calculating the SNR (in the sample).         
-        
-    Returns
-   --------   
-    snr : {float, None}
-       Estimated SNR in db. 
-       
-        
-    """      
-    import math
-    snr = None
-    if pat:
-        try:
-            if int(pat) >= window and (int(pat)+window) < len(data):
-                nw1 = data[int(pat)-window : int(pat)];
-                sw1 = data[int(pat) : int(pat)+window];
-                snr = round(10*math.log10((np.percentile(sw1,95)/np.percentile(nw1,95))**2), 1)           
-            elif int(pat) < window and (int(pat)+window) < len(data):
-                window = int(pat)
-                nw1 = data[int(pat)-window : int(pat)];
-                sw1 = data[int(pat) : int(pat)+window];
-                snr = round(10*math.log10((np.percentile(sw1,95)/np.percentile(nw1,95))**2), 1)
-            elif (int(pat)+window) > len(data):
-                window = len(data)-int(pat)
-                nw1 = data[int(pat)-window : int(pat)];
-                sw1 = data[int(pat) : int(pat)+window];
-                snr = round(10*math.log10((np.percentile(sw1,95)/np.percentile(nw1,95))**2), 1)    
-        except Exception:
-            pass
-    return snr 
-
 
 def _detect_peaks(x, mph=None, mpd=1, threshold=0, edge='rising', kpsh=False, valley=False):
 
@@ -1489,65 +1293,9 @@ def _picker(args, yh3, thr_type='P_threshold'):
         swave = si[inds]
         Ppickall.append((swave))
         Pproball.append((np.max(so)))
-    except:
+    except Exception as e:
+        print(str(e))
         Ppickall.append(None)
         Pproball.append(None)
-
-    #print(np.shape(Ppickall))
-    #Ppickall = np.array(Ppickall)
-    #Pproball = np.array(Pproball)
     
     return Ppickall, Pproball
-
-
-def _resampling(st):
-    'perform resampling on Obspy stream objects'
-    
-    need_resampling = [tr for tr in st if tr.stats.sampling_rate != 100.0]
-    if len(need_resampling) > 0:
-       # print('resampling ...', flush=True)    
-        for indx, tr in enumerate(need_resampling):
-            if tr.stats.delta < 0.01:
-                tr.filter('lowpass',freq=45,zerophase=True)
-            tr.resample(100)
-            tr.stats.sampling_rate = 100
-            tr.stats.delta = 0.01
-            tr.data.dtype = 'int32'
-            st.remove(tr)                    
-            st.append(tr) 
-    return st 
-
-
-def _normalize(data, mode = 'max'):  
-    """ 
-    
-    Normalize 3D arrays.
-    
-    Parameters
-    ----------
-    data : 3D numpy array
-        3 component traces. 
-        
-    mode : str, default='std'
-        Mode of normalization. 'max' or 'std'     
-        
-    Returns
-    -------  
-    data : 3D numpy array
-        normalized data. 
-            
-    """  
-       
-    data -= np.mean(data, axis=0, keepdims=True)
-    if mode == 'max':
-        max_data = np.max(data, axis=0, keepdims=True)
-        assert(max_data.shape[-1] == data.shape[-1])
-        max_data[max_data == 0] = 1
-        data /= max_data              
-
-    elif mode == 'std':               
-        std_data = np.std(data, axis=0, keepdims=True)
-        assert(std_data.shape[-1] == data.shape[-1])
-        std_data[std_data == 0] = 1
-        data /= std_data
-    return data

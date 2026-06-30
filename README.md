@@ -159,10 +159,8 @@ The SeisComP system must be installed prior to installing this module.
 Clone the project repository into any local directory:
 
 ```bash
-git clone https://github.austin.utexas.edu/texnet/eqcct-dev.git
+git clone https://github.com/ut-beg-texnet/scmlpick.git
 ```
-
-> 📝 Replace the URL with the public repository link when available.
 
 ---
 

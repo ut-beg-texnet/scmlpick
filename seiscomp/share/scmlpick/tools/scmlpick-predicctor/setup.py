@@ -8,6 +8,6 @@ setup(
         # "numpy>=1.23",
     ],
     author="Camilo Munoz",
-    description="Predictor module for SCEQCCT",
+    description="Predictor module for SCMLPick",
     zip_safe=False,
 )
