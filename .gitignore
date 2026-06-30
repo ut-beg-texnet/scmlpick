@@ -12,8 +12,6 @@ seiscomp/share/scmlpick/tools/regions/
 seiscomp/share/scmlpick/tools/regions/*
 seiscomp/share/scmlpick/tools/bindings/
 seiscomp/share/scmlpick/tools/bindings/*
-!seiscomp/share/scmlpick/tools/bindings/buildBindings.py
-!seiscomp/share/scmlpick/tools/bindings/setBinds.py
 seiscomp/share/scmlpick/tools/filters/
 seiscomp/share/scmlpick/tools/filters/*
 seiscomp/share/scmlpick/tools/scmlpick-predicctor/predictor.egg-info/
