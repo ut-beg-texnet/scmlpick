@@ -1,10 +1,27 @@
 docs/
-seiscomp/share/scmlpick/model/*
-!seiscomp/share/scmlpick/model/ModelPS/
-!seiscomp/share/scmlpick/model/ModelPS/**
+
+# Python generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# SCMLPick generated/test outputs
+seiscomp/share/scmlpick/tools/picks.xml
+seiscomp/share/scmlpick/tools/__pycache__/
+seiscomp/share/scmlpick/tools/regions/
+seiscomp/share/scmlpick/tools/regions/*
+seiscomp/share/scmlpick/tools/bindings/
 seiscomp/share/scmlpick/tools/bindings/*
 !seiscomp/share/scmlpick/tools/bindings/buildBindings.py
 !seiscomp/share/scmlpick/tools/bindings/setBinds.py
+seiscomp/share/scmlpick/tools/filters/
 seiscomp/share/scmlpick/tools/filters/*
-seiscomp/share/scmlpick/tools/regions/*
+seiscomp/share/scmlpick/tools/scmlpick-predicctor/predictor.egg-info/
+seiscomp/share/scmlpick/tools/scmlpick-predicctor/predictor/__pycache__/
+seiscomp/share/scmlpick/results/logs/model.log
 seiscomp/share/scmlpick/tools/*.py
+
+# SCMLPick model files
+seiscomp/share/scmlpick/model/*
+!seiscomp/share/scmlpick/model/ModelPS/
+!seiscomp/share/scmlpick/model/ModelPS/**
