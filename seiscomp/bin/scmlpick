@@ -970,7 +970,7 @@ class scmlpick(StreamApplication):
                     try:
                         data=np.array(rec_dict["data"])
                     except Exception as e:
-                        stdlogging.error(e)
+                        stdlogging.error(str(e))
                         stdlogging.debug('No data')
                         continue
 
@@ -1130,7 +1130,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['pickTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickTargetGroup')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.pickTargetGroup')
                     logging.warning('setting default pickTargetGroup')
                     profDic['pickTargetGroup'] = ''
@@ -1138,7 +1138,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['pickSimulTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickSimulTargetGroup')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.pickSimulTargetGroup')
                     logging.warning('setting default pickSimulTargetGroup')
                     profDic['pickSimulTargetGroup'] = ''
@@ -1146,7 +1146,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['pickBulkTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.pickBulkTargetGroup')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.pickBulkTargetGroup')
                     logging.warning('setting default pickBulkTargetGroup')
                     profDic['pickBulkTargetGroup'] = ''
@@ -1154,7 +1154,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['locTargetGroup'] = self.configGetString('pipelines.profiles.'+profile+'.locTargetGroup')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.locTargetGroup')
                     logging.warning('setting default locTargetGroup')
                     profDic['locTargetGroup'] = ''
@@ -1163,7 +1163,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['authorTarget'] = self.configGetString('pipelines.profiles.'+profile+'.authorTarget')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('Error when reading pipelines.profiles.'+profile+'.authorTarget')
                     logging.warning('setting default authorTarget')
                     profDic['authorTarget'] = ''
@@ -1172,7 +1172,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['stations'] = self.configGetStrings('pipelines.profiles.'+profile+'.stations')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('error when reading pipelines.profiles.'+profile+'.stations')
                     logging.warning('setting stations = ""')
                     profDic['stations'] = ''
@@ -1181,7 +1181,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['region'] = self.configGetString('pipelines.profiles.'+profile+'.region')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('error when reading pipelines.profiles.'+profile+'.region')
                     logging.warning('setting stations = ""')
                     profDic['region'] = ''
@@ -1190,7 +1190,7 @@ class scmlpick(StreamApplication):
                 try:
                     profDic['filtersFile'] = self.configGetString('pipelines.profiles.'+profile+'.filtersFile')
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.warning('error when reading pipelines.profiles.'+profile+'.filtersFile')
                     logging.warning('setting filtersFile = ""')
                     profDic['filtersFile'] = ''
@@ -1880,7 +1880,7 @@ class scmlpick(StreamApplication):
             freqmin, freqmax = sorted(float(x) for x in f[f.index("(")+1:f.index(")")].split(",")[1:3])
             filterID = f"BW(2,{freqmin},{freqmax})"
         except Exception as e:
-            logging.error(e)
+            logging.error(str(e))
             pass
 
         wfID = WaveformStreamID()
@@ -2116,7 +2116,7 @@ class scmlpick(StreamApplication):
                         checkReg = True
                     checkQc = self.qualityCheckOrigin(org)
                 except Exception as e:
-                    logging.error(e)
+                    logging.error(str(e))
                     logging.error("Error when performing quality checks for the origin %s" % org.publicID())
                     return
                 if checkQc and checkReg:
