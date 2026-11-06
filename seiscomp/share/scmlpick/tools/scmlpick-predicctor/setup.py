@@ -9,10 +9,10 @@ setup(
     python_requires=">=3.10,<3.13",
     install_requires=[
         "numpy>=1.26.4,<2.0",
-        "pandas>=1.5",
-        "scipy>=1.11",
+        "pandas>=1.5,<2.4",
+        "scipy>=1.11,<1.16",
         "obspy>=1.4",
-        "ray>=2.9",
+        "ray>=2.9,<2.60",
         "tensorflow==2.17.0",
         "tf-keras==2.17.0",
         "silence-tensorflow>=1.2",

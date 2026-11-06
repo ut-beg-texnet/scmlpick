@@ -2,7 +2,7 @@
 <seiscomp>
         <module name="scmlpick" category="texnet" author="Texas Seismological Network (TexNet)" inherit-global-bindings="true">
                 <description>
-                        Real-time seismic phase picking using machine-learning models (EQCCT by default)
+                        Real-time seismic phase picking. EQCCT is the default architecture. UTrans, PhaseNet, and EQTransformer are selected with eqcct.architecture.
                 </description>
                 <configuration>
                         <parameter name="whiteChanns" type="list:string">
@@ -107,7 +107,7 @@
                                 </parameter>
                                 <parameter name="traceDelay" type="int" default="120">
                                         <description>
-                                            Minimum delay in seconds between the current time and the start time of data acquired to send data to delayed data processing.
+                                            A station this many seconds behind the newest complete window is not sent as its own old window. Its samples stay in memory and it is picked on the live window once that window is covered. A shorter gap is still sent from the station's own start.
                                         </description>
                                 </parameter>
                                 <parameter name="eqcctPthr" type="double" default="0.001">
@@ -132,7 +132,7 @@
                                 </parameter>
                                 <parameter name="gpuID" type="int" default="0">
                                         <description>
-                                            Id of GPU used for the prediction. If using CPU set to None.
+                                            GPU index passed to the picker. Set to -1 to run on CPU.
                                         </description>
                                 </parameter>
                                 <parameter name="gpuLimit" type="int" default="1">

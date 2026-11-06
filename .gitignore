@@ -1,4 +1,8 @@
-docs/
+# Generated documentation. The sources under docs/ are part of the repository.
+docs/build-doc/
+
+# Local setuptools output from pip install .
+/build/
 
 # Python generated files
 __pycache__/

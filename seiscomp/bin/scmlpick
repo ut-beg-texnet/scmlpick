@@ -2459,7 +2459,15 @@ class scmlpick(StreamApplication):
             return {"ok": False, "error": str(e)}
 
     def scPhase(self,picks):
-        ep = EventParameters()
+        # Playback rewrites the output file after each result. Keep one
+        # EventParameters for the run so earlier picks stay in the file.
+        if self.playback:
+            ep = getattr(self, "_play_ep", None)
+            if ep is None:
+                ep = EventParameters()
+                self._play_ep = ep
+        else:
+            ep = EventParameters()
         resPicks = []
         for pickData in picks:
             logging.info(str(pickData))

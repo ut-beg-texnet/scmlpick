@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp>
+	<module name="sceewv" category="EEW" author="Ewarnica project">
+		<description>
+			SeisComP Early Warning View
+		</description>
+		<configuration>
+			<parameter name="postProcFreq" type="int" default="60">
+				<description>
+					Interval in minutes to compute envelopes and update events JSON database
+				</description>
+			</parameter>
+			<parameter name="APPSpath" type="path" default="@DATADIR@/sceewv/">
+				<description>
+					Path to save/update config for all apps
+				</description>
+			</parameter>
+			<parameter name="JSONpath" type="path" default="@DATADIR@/sceewv/events/">
+				<description>
+					Path to save JSON database
+				</description>
+			</parameter>
+			<parameter name="fdTypes" type="list:String" default="[Mfd,Mfdr,Mfdl]">
+				<description>
+					Types of magnitude FinDer allowed
+				</description>
+			</parameter>
+			<parameter name="alert" type="bool" default="True">
+				<description>
+					If scqcalert dashboard available. alertpath required
+				</description>
+			</parameter>
+			<parameter name="alertpath" type="path" default="@DATADIR@/sceewv/">
+				<description>
+					Path to scqcalert dashboard
+				</description>
+			</parameter>
+			<parameter name="host" type="String" default="0.0.0.0">
+				<description>
+					Bind address of the server. "0.0.0.0" allows any interface to conect to this server
+				</description>
+			</parameter>
+			<parameter name="port" type="String" default="8050">
+				<description>
+					Server port
+				</description>
+			</parameter>
+			<parameter name="mapboxtoken" type="path" default="@DATADIR@/sceewv/mapbox_token">
+				<description>
+					 App key to use custom maps with mapbox
+				</description>
+			</parameter>
+			<parameter name="extquery" type="bool" default="True">
+				<description>
+					Use external catalog to evaluate events
+				</description>
+			</parameter>
+			<parameter name="fdsnwsname" type="String" default="NEIC">
+				<description>
+					fdsnws service name to use for external catalog
+				</description>
+			</parameter>
+			<parameter name="agency" type="String" default="OVSICORI-UNA">
+				<description>
+					Agency name
+				</description>
+			</parameter>
+			<parameter name="fdsnwsclient" type="String" default="https://earthquake.usgs.gov/">
+				<description>
+					Route to fdsnws service
+				</description>
+			</parameter>
+			<parameter name="deltatime" type="int" default="1">
+				<description>
+					Delta time in minutes to compare events against external catalog
+				</description>
+			</parameter>
+			<parameter name="deltadist" type="int" default="1">
+				<description>
+					Delta distance in degrees to compare events against external catalog
+				</description>
+			</parameter>
+			<parameter name="magtypes" type="list:String" default="[MVS,Mfd,Mfdr,Mfdl]">
+				<description>
+					EEW magnitude types allowed to show in events dashboard
+				</description>
+			</parameter>
+			<parameter name="latmin" type="double" default="5.5">
+				<description>
+					Minimum latitude allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="latmax" type="double" default="19.0">
+				<description>
+					Maximum latitude allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="lonmin" type="double" default="-94.0">
+				<description>
+					Minimum longitude allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="lonmax" type="double" default="-81.5">
+				<description>
+					Maximum longitude allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="latrmin" type="double" default="10.5">
+				<description>
+					Minimum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="latrmax" type="double" default="14.6">
+				<description>
+					Maximum latitude network region allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="lonrmin" type="double" default="-90.5">
+				<description>
+					Minimum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="lonrmax" type="double" default="-87.1">
+				<description>
+					Maximum longitude network region allowed to show in events dashboard (value used in external catalog queries)
+				</description>
+			</parameter>
+			<parameter name="jsonpath" type="path" default="@DATADIR@/sceewv/events/">
+				<description>
+					Path to query events information
+				</description>
+			</parameter>
+			<parameter name="distint" type="int" default="100">
+				<description>
+					Distance in km to compute intensity using allen 2012
+				</description>
+			</parameter>
+			<parameter name="fpstatus" type="bool" default="False">
+				<description>
+					Show FP delay information in the histogram events dashboard
+				</description>
+			</parameter>
+			<parameter name="deltadays" type="int" default="30">
+				<description>
+					Delta in days to select initial period to show in events dashboard
+				</description>
+			</parameter>
+			<parameter name="minmag" type="double" default="4.0">
+				<description>
+					Minumum magnitude use in the initial range to show in events dashboard
+				</description>
+			</parameter>
+			<parameter name="maxmag" type="double" default="10.0">
+				<description>
+					Maximum magnitude use in the initial range to show in events dashboard
+				</description>
+			</parameter>
+			<parameter name="cmaplat" type="double" default="13.0">
+				<description>
+					Initial latitude to center map
+				</description>
+			</parameter>
+			<parameter name="cmaplon" type="double" default="-89.0">
+				<description>
+					Initial longitude to center map
+				</description>
+			</parameter>
+			<parameter name="zoomap" type="int" default="5">
+				<description>
+					Initial Zoom map 0 to 20
+				</description>
+			</parameter>
+			<parameter name="evejsonpath" type="String" default="@DATADIR@/sceewv/event/">
+				<description>
+					Path to query event envelope information
+				</description>
+			</parameter>
+			<parameter name="phases" type="list:String" default="[P,S,p,s]">
+				<description>
+					List of phases for which to compute theoretical times
+				</description>
+			</parameter>
+			<parameter name="colors" type="list:String" default="[#4D5656,#424949,#4D5656,#424949]">
+				<description>
+					List of colors to show phases selected phases
+				</description>
+			</parameter>
+			<parameter name="model" type="String" default="iasp91">
+				<description>
+					Velocity model used to compute theroic arrivals
+				</description>
+			</parameter>
+			<parameter name="fdsnwsclientwf" type="String" default="http://localhost:8080">
+				<description>
+					Route to fdsnws service to query waveforms
+				</description>
+			</parameter>
+			<parameter name="envalias" type="String" default="sceewvenv">
+				<description>
+					Route to fdsnws service to query waveforms
+				</description>
+			</parameter>
+			<parameter name="eveminmag" type="int" default="4">
+				<description>
+					Alias of sceewenv module to use in offline mode to compute envelope data
+				</description>
+			</parameter>
+			<parameter name="evemaxmag" type="int" default="9.9">
+				<description>
+					Maximum magnitude use in the initial range to show in events dashboard
+				</description>
+			</parameter>
+			<parameter name="evedeltadays" type="int" default="30">
+				<description>
+					Delta in days to select initial period to show in event dashboard
+				</description>
+			</parameter>
+			<parameter name="timebefore" type="int" default="10">
+				<description>
+					Time in seconds before pick to extract wavefrom
+				</description>
+			</parameter>
+			<parameter name="timeafter" type="int" default="180">
+				<description>
+					Time in seconds after pick to extract wavefrom
+				</description>
+			</parameter>
+			<parameter name="maxdist" type="int" default="250">
+				<description>
+					Maximum distance in km to look for waveforms to compute envelope data
+				</description>
+			</parameter>
+			<parameter name="invuri" type="String" default="mysql://sysop:sysop@localhost/seiscomp">
+				<description>
+					Database URI to query inventory to produce station list used in the envelope data plot
+				</description>
+			</parameter>
+		</configuration>
+	</module>
+</seiscomp>

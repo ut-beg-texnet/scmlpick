@@ -30,12 +30,14 @@ PREDICTOR_ROOT = "seiscomp/share/scmlpick/tools/scmlpick-predicctor"
 # Ray task mode, and Ray model-actor, in float32 and bfloat16.
 # tf-keras must be the same TensorFlow release: EQTransformer was saved
 # with Keras 2 and is opened through that package.
+# The upper bounds keep a new install on that same generation.
+# Without them, current pip selects pandas 3 and SciPy 1.17.
 INSTALL_REQUIRES = [
     "numpy>=1.26.4,<2.0",
-    "pandas>=1.5",
-    "scipy>=1.11",
+    "pandas>=1.5,<2.4",
+    "scipy>=1.11,<1.16",
     "obspy>=1.4",
-    "ray>=2.9",
+    "ray>=2.9,<2.60",
     "tensorflow==2.17.0",
     "tf-keras==2.17.0",
     "silence-tensorflow>=1.2",
@@ -93,8 +95,8 @@ setup(
         "Bug Tracker": "https://github.com/ut-beg-texnet/scmlpick/issues",
     },
     license="BSD-3-Clause",
-    packages=find_packages(where=str(ROOT / PREDICTOR_ROOT)),
-    package_dir={"": str(ROOT / PREDICTOR_ROOT)},
+    packages=find_packages(where=PREDICTOR_ROOT),
+    package_dir={"": PREDICTOR_ROOT},
     include_package_data=True,
     python_requires=">=3.10,<3.13",
     install_requires=INSTALL_REQUIRES,
