@@ -34,7 +34,7 @@
             TexNet
           </a>
               <div class="version">
-                Generated on 2025/10/10
+                Generated on 2026/11/06
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
@@ -51,10 +51,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#seiscomp-system">SeisComP System</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#operating-system">Operating System</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#programming-language">Programming Language</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#required-python-packages">Required Python Packages</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#clone-the-repository">Clone the Repository</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#deploy-the-code-into-the-seiscomp-installation-directory">Deploy the Code into the SeisComP Installation Directory</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#predictor-installation">Predictor Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deploy-the-module">Deploy the Module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#python-environment-used-by-the-service">Python Environment Used by the Service</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#enable-and-start">Enable and Start</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting Started</a><ul>
@@ -62,6 +62,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#next-steps">Next Steps</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#picker-architectures">Picker Architectures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-profiles">Module Profiles</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#bindings">Bindings</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#where-to-configure">Where to Configure</a></li>
@@ -80,13 +81,13 @@
 <li class="toctree-l3"><a class="reference internal" href="#running-playback">Running Playback</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#tuning">Tuning</a><ul class="simple">
+<li class="toctree-l2"><a class="reference internal" href="#tuning">Tuning</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ml-algorithm-configuration">ML algorithm configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#data-sent-for-processing">Data sent for processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ray-configuration">Ray configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#locations-quality-control">Locations quality control</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#ml-methods">ML methods</a><ul class="simple">
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#resources-optimization">Resources Optimization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#references">References</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#id7">Bindings</a></li>
@@ -124,12 +125,15 @@
              
   <section id="scmlpick">
 <span id="id1"></span><h1>scmlpick<a class="headerlink" href="#scmlpick" title="Link to this heading"></a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">scmlpick</span></code> is a SeisComP module that performs real-time seismic phase picking
-using machine-learning models (EQCCT by default), designed for operational networks
-and research workflows. It supports multi-pipeline execution, per-station configuration
-via SeisComP <strong>bindings</strong>, and <strong>playback</strong> for offline reprocessing.</p>
+<p><code class="docutils literal notranslate"><span class="pre">scmlpick</span></code> is a SeisComP module that performs real-time seismic phase picking.
+EQCCT is the default architecture. The same process can run UTrans
+(<code class="docutils literal notranslate"><span class="pre">utrans_eqcct</span></code>), PhaseNet, or EQTransformer by setting
+<a class="reference internal" href="#confval-eqcct.architecture"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.architecture</span></code></a>. One process uses one architecture. Several
+profiles inside that process split stations, messaging groups, and regions.
+Per-station configuration uses SeisComP <strong>bindings</strong>. <strong>Playback</strong> reprocesses
+stored waveforms.</p>
 <p>Seamless integration with <a class="reference external" href="https://www.seiscomp.de/">SeisComP</a> (<a class="reference external" href="https://docs.gempa.de/seiscomp/current/">official documentation</a>)
-enables direct publishing of <a class="reference external" href="https://www.seiscomp.de/doc/base/glossary.html#term-pick" title="(in SeisComP v6.9.0)"><span class="xref std std-term">Pick</span></a> objects to the messaging system, use of station
+enables direct publishing of <a class="reference external" href="https://www.seiscomp.de/doc/base/glossary.html#term-pick" title="(in SeisComP v7.4.0)"><span class="xref std std-term">Pick</span></a> objects to the messaging system, use of station
 bindings, and interoperability with other SeisComP modules.</p>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
@@ -154,87 +158,44 @@ Once installed, verify that SeisComP is properly configured and accessible in yo
 <section id="programming-language">
 <h3>Programming Language<a class="headerlink" href="#programming-language" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p><strong>Python ≥ 3.10</strong></p></li>
+<li><p><strong>Python 3.10, 3.11, or 3.12</strong> on glibc Linux. Python 3.9 and older are not supported. Alpine and other musl systems are outside the TensorFlow wheels used here.</p></li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Python versions prior to <code class="docutils literal notranslate"><span class="pre">3.10</span></code> are <strong>not supported</strong> due to incompatibilities
-with the <code class="docutils literal notranslate"><span class="pre">ray</span></code> library.</p>
-</div>
-</section>
-<section id="required-python-packages">
-<h3>Required Python Packages<a class="headerlink" href="#required-python-packages" title="Link to this heading"></a></h3>
-<p>It is strongly recommended to install these packages inside a dedicated virtual
-environment (e.g., Conda) to avoid dependency conflicts.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>scmlpick<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
-conda<span class="w"> </span>activate<span class="w"> </span>scmlpick
-</pre></div>
-</div>
-<p>Install the following Python packages:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>ray
-pip<span class="w"> </span>install<span class="w"> </span><span class="nv">numpy</span><span class="o">==</span><span class="m">1</span>.26.4<span class="w">      </span><span class="c1"># Avoid numpy ≥ 2.0 to maintain compatibility</span>
-pip<span class="w"> </span>install<span class="w"> </span>pandas
-pip<span class="w"> </span>install<span class="w"> </span>obspy
-pip<span class="w"> </span>install<span class="w"> </span>tensorflow
-pip<span class="w"> </span>install<span class="w"> </span>silence_tensorflow
-</pre></div>
-</div>
 </section>
 <section id="clone-the-repository">
 <h3>Clone the Repository<a class="headerlink" href="#clone-the-repository" title="Link to this heading"></a></h3>
-<p>Clone the project repository into any local directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ut-beg-texnet/scmlpick.git
+<span class="nb">cd</span><span class="w"> </span>scmlpick
 </pre></div>
 </div>
 </section>
-<section id="deploy-the-code-into-the-seiscomp-installation-directory">
-<h3>Deploy the Code into the SeisComP Installation Directory<a class="headerlink" href="#deploy-the-code-into-the-seiscomp-installation-directory" title="Link to this heading"></a></h3>
-<p>Copy all necessary files into your SeisComP installation using <code class="docutils literal notranslate"><span class="pre">rsync</span></code> to preserve
-the directory structure:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rsync<span class="w"> </span>-av<span class="w"> </span>/path/to/your-cloned-repository/seiscomp/<span class="w"> </span>/path/to/your-seiscomp-installation/
+<section id="deploy-the-module">
+<h3>Deploy the Module<a class="headerlink" href="#deploy-the-module" title="Link to this heading"></a></h3>
+<p>Copy the <code class="docutils literal notranslate"><span class="pre">seiscomp/</span></code> directory onto the SeisComP root. Do not copy the repository root.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rsync<span class="w"> </span>-a<span class="w"> </span>seiscomp/<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SEISCOMP_ROOT</span><span class="s2">/&quot;</span>
 </pre></div>
 </div>
-<ul class="simple">
-<li><p>Replace <code class="docutils literal notranslate"><span class="pre">/path/to/your-cloned-repository/seiscomp/</span></code> with the absolute path to the seiscomp folder in your cloned repository.</p></li>
-<li><p>Replace <code class="docutils literal notranslate"><span class="pre">/path/to/your-seiscomp-installation/</span></code> with your SeisComP root (typically <code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT/</span></code>).</p></li>
-</ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This step integrates the module into the SeisComP environment, preserving file structure
-and permissions.</p>
-</div>
+<p><code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT</span></code> is usually <code class="docutils literal notranslate"><span class="pre">/opt/seiscomp</span></code>. The model weights for EQCCT, UTrans, PhaseNet, and EQTransformer are under <code class="docutils literal notranslate"><span class="pre">seiscomp/share/scmlpick/model/</span></code> and are included by that copy.</p>
+<p><code class="docutils literal notranslate"><span class="pre">seiscomp/etc/scmlpick.cfg</span></code> in this repository is one host’s configuration. On another computer, edit the messaging connection, the subscriptions, the model paths, and the profiles before starting the module. Station bindings and region polygons are not stored in the repository.</p>
 </section>
-<section id="predictor-installation">
-<h3>Predictor Installation<a class="headerlink" href="#predictor-installation" title="Link to this heading"></a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">scmlpick-predicctor</span></code> module must be installed <strong>after</strong> after the deployment of the scmlpikc reposity into seiscomp path.
-The installation procedure depends on whether a virtual environment is being used.</p>
-<p><strong>If NOT using a virtual environment</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="nv">$SEISCOMP_ROOT</span>/share/scmlpick/tools/scmlpick-predicctor
-pip3<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<section id="python-environment-used-by-the-service">
+<h3>Python Environment Used by the Service<a class="headerlink" href="#python-environment-used-by-the-service" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">seiscomp/bin/scmlpick</span></code> starts <code class="docutils literal notranslate"><span class="pre">/opt/seiscomp/share/scmlpick/pyenv/bin/python</span></code> when that file exists. Create that environment and install this repository into it. Run the last command from the repository root.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>/opt/seiscomp/share/scmlpick/pyenv
+/opt/seiscomp/share/scmlpick/pyenv/bin/python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
+/opt/seiscomp/share/scmlpick/pyenv/bin/python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>.
 </pre></div>
 </div>
-<p><strong>If using a Conda or other virtual environment</strong></p>
-<p>Activate your environment (replace <code class="docutils literal notranslate"><span class="pre">scmlpick</span></code> with your actual environment name):</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>scmlpick
+<p>That installs the predictor and the libraries declared in the root <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>: NumPy 1.26, pandas 2.x, SciPy 1.15, ObsPy, Ray 2.59, TensorFlow 2.17.0, and tf-keras 2.17.0. Repeating the last command reinstalls the same package into that environment.</p>
+<p>If SeisComP is not installed under <code class="docutils literal notranslate"><span class="pre">/opt/seiscomp</span></code>, create the environment at <code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT/share/scmlpick/pyenv</span></code> and point <code class="docutils literal notranslate"><span class="pre">_PY</span></code> at the top of <code class="docutils literal notranslate"><span class="pre">seiscomp/bin/scmlpick</span></code> to that interpreter.</p>
+<p><code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">setup.py</span> <span class="pre">--make-env</span></code>, run from the repository root, creates <code class="docutils literal notranslate"><span class="pre">.venv</span></code> inside the repository. That environment is for working on the predictor. The service does not use it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">seiscomp/share/scmlpick/tools/scmlpick-predicctor/setup.py</span></code> installs the same package when the current directory is already the deployed SeisComP tree (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> from that directory). A new installation uses the <code class="docutils literal notranslate"><span class="pre">setup.py</span></code> at the repository root.</p>
+</section>
+<section id="enable-and-start">
+<h3>Enable and Start<a class="headerlink" href="#enable-and-start" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>seiscomp<span class="w"> </span>update-config<span class="w"> </span>scmlpick
+seiscomp<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>scmlpick
+seiscomp<span class="w"> </span>start<span class="w"> </span>scmlpick
 </pre></div>
-</div>
-</div></blockquote>
-<p>Navigate to the predictor directory:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="nv">$SEISCOMP_ROOT</span>/share/scmlpick/tools/scmlpick-predicctor
-</pre></div>
-</div>
-</div></blockquote>
-<p>Install the predictor module:</p>
-<blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</pre></div>
-</div>
-</div></blockquote>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Once installed, verify that SeisComP is properly configured and accessible in your environment.</p>
 </div>
 </section>
 </section>
@@ -242,13 +203,14 @@ pip3<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </
 <h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
 <section id="real-time-setup">
 <h3>Real-Time Setup<a class="headerlink" href="#real-time-setup" title="Link to this heading"></a></h3>
-<p>Before starting using scmlpick in real-time you have to be sure in complete the following steps:</p>
+<p>Before starting <code class="docutils literal notranslate"><span class="pre">scmlpick</span></code> in real time:</p>
 <ol class="arabic">
-<li><p>Create profile in the pipelines section in the module configuration (see <a class="reference internal" href="#confval-pipelines.profiles"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles</span></code></a>.)</p></li>
-<li><p>Create and configure pick target and location target groups in the profile. (see <a class="reference internal" href="#confval-pipelines.profiles.-name.pickTargetGroup"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles.$name.pickTargetGroup</span></code></a> and <a class="reference internal" href="#confval-pipelines.profiles.-name.locTargetGroup"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles.$name.locTargetGroup</span></code></a>)</p></li>
-<li><p>Create a <strong>binding profile</strong> with pick enable option (see <a class="reference internal" href="#bindings"><span class="std std-ref">Bindings</span></a>), the name should match with the module profile created in step 1.</p></li>
-<li><p>Assign the binding profile to stations/streams in <a class="reference external" href="https://www.seiscomp.de/doc/apps/scconfig.html">scconfig</a> (or edit bindings files).</p></li>
-<li><p>Start your messaging: <code class="docutils literal notranslate"><span class="pre">scmaster</span> <span class="pre">start</span></code> (or your standard SeisComP workflow).</p></li>
+<li><p>Choose one architecture with <a class="reference internal" href="#confval-eqcct.architecture"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.architecture</span></code></a> and point <a class="reference internal" href="#confval-eqcct.Pmodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Pmodel</span></code></a> and <a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a> at the matching weights.</p></li>
+<li><p>Create one or more profiles in <a class="reference internal" href="#confval-pipelines.profiles"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles</span></code></a>. Every profile in this process uses the architecture from step 1.</p></li>
+<li><p>Set <a class="reference internal" href="#confval-pipelines.profiles.-name.pickTargetGroup"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles.$name.pickTargetGroup</span></code></a> and <a class="reference internal" href="#confval-pipelines.profiles.-name.locTargetGroup"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles.$name.locTargetGroup</span></code></a> for each profile.</p></li>
+<li><p>Create a binding profile with the same name and set <a class="reference internal" href="#confval-profiles.-name.pickEnable"><code class="xref std std-confval docutils literal notranslate"><span class="pre">profiles.$name.pickEnable</span></code></a> (see <a class="reference internal" href="#bindings"><span class="std std-ref">Bindings</span></a>).</p></li>
+<li><p>Assign that binding to the stations in <a class="reference external" href="https://www.seiscomp.de/doc/apps/scconfig.html">scconfig</a>, or edit the key files.</p></li>
+<li><p>Start messaging (<code class="docutils literal notranslate"><span class="pre">scmaster</span></code> or the usual SeisComP workflow).</p></li>
 <li><p>Launch <code class="docutils literal notranslate"><span class="pre">scmlpick</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scmlpick<span class="w"> </span>-u<span class="w"> </span>user<span class="w"> </span>--debug
 </pre></div>
@@ -265,20 +227,58 @@ pip3<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </
 <section id="next-steps">
 <h3>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>Create <strong>module profiles</strong> (see <a class="reference internal" href="#profiles"><span class="std std-ref">Module Profiles</span></a>) to separate dataflows and create specific processing for specific purposes.</p></li>
-<li><p>Depending the number of stations and resources available configure ray parameters (see <span class="xref std std-ref">permormance</span>)</p></li>
-<li><p>Tune critial parameters like P and S models, probability thresholds, time windows lenght overlaps and more in the module configuration.</p></li>
-<li><p>Use (see <a class="reference internal" href="#playback"><span class="std std-ref">Playback</span></a>) to postprocessing or validate parameters runing in playback mode with mseed files or historical data.</p></li>
+<li><p>Add profiles (see <a class="reference internal" href="#profiles"><span class="std std-ref">Module Profiles</span></a>) when one architecture must publish to more than one messaging group.</p></li>
+<li><p>Start a second module name when a second architecture must run at the same time. See <a class="reference internal" href="#architectures"><span class="std std-ref">Picker Architectures</span></a>.</p></li>
+<li><p>Set the Ray parameters in <a class="reference internal" href="#tuning"><span class="std std-ref">Tuning</span></a> for the number of stations on the machine.</p></li>
+<li><p>Use <a class="reference internal" href="#playback"><span class="std std-ref">Playback</span></a> to reprocess miniSEED or a RecordStream.</p></li>
 </ul>
 </section>
 </section>
+<section id="picker-architectures">
+<span id="architectures"></span><h2>Picker Architectures<a class="headerlink" href="#picker-architectures" title="Link to this heading"></a></h2>
+<p>Set <a class="reference internal" href="#confval-eqcct.architecture"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.architecture</span></code></a>. The weights under
+<code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT/share/scmlpick/model/</span></code> match the four names below.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">eqcct</span></code></dt><dd><p>Compact convolutional transformer. Default.
+<a class="reference internal" href="#confval-eqcct.Pmodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Pmodel</span></code></a> and <a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a> are the two ModelPS files
+<code class="docutils literal notranslate"><span class="pre">test_trainer_024.h5</span></code> and <code class="docutils literal notranslate"><span class="pre">test_trainer_021.h5</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">utrans_eqcct</span></code></dt><dd><p>EQCCT picking heads on a pretrained U-Trans foundation encoder. The encoder
+output is concatenated as a fourth input channel.
+See <a class="reference external" href="https://doi.org/10.1038/s41598-026-41454-x">https://doi.org/10.1038/s41598-026-41454-x</a>.
+Point Pmodel and Smodel at the Foundation-EQCCT checkpoints
+<code class="docutils literal notranslate"><span class="pre">test_trainer_P_FoundationEQCCT_026.h5</span></code> and
+<code class="docutils literal notranslate"><span class="pre">test_trainer_S_FoundationEQCCT_025.h5</span></code>. Plain EQCCT weights do not load here.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">phasenet</span></code></dt><dd><p>Official PhaseNet U-Net (Zhu and Beroza, 2019). One checkpoint directory,
+<code class="docutils literal notranslate"><span class="pre">model/PhaseNet/190703-214543</span></code>, set as <a class="reference internal" href="#confval-eqcct.Pmodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Pmodel</span></code></a>.
+<a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a> is ignored. PhaseNet normalizes each window itself.
+Its published probability threshold is about 0.3, higher than the EQCCT defaults.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">eqtransformer</span></code></dt><dd><p>Official EQTransformer (Mousavi et al., 2020). Point <a class="reference internal" href="#confval-eqcct.Pmodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Pmodel</span></code></a>
+at <code class="docutils literal notranslate"><span class="pre">model/EQTransformer/EqT_original_model.h5</span></code> or at that directory.
+<a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a> is ignored. This file was saved with Keras 2 and is
+opened through the <code class="docutils literal notranslate"><span class="pre">tf-keras</span></code> package. Published P and S thresholds for the
+mseed predictor are 0.1. The 1–45 Hz bandpass used in the bindings matches
+the STEAD preprocessing described for this model.</p>
+</dd>
+</dl>
+<p><a class="reference internal" href="#confval-eqcct.gpuID"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.gpuID</span></code></a> is the GPU index. Set it to <code class="docutils literal notranslate"><span class="pre">-1</span></code> to run on CPU.
+<a class="reference internal" href="#confval-ray.precision"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.precision</span></code></a> selects <code class="docutils literal notranslate"><span class="pre">bf16</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">fp32</span></code> for every architecture.
+The weight files stay float32. <code class="docutils literal notranslate"><span class="pre">bf16</span></code> changes the arithmetic.</p>
+</section>
 <section id="module-profiles">
 <span id="profiles"></span><h2>Module Profiles<a class="headerlink" href="#module-profiles" title="Link to this heading"></a></h2>
-<p>In <strong>scmlpick</strong>, in contrast to other SeisComP modules, creating aliases is <strong>not</strong> recommended.
-Each alias starts a separate instance that runs in parallel and increases CPU/RAM usage.
-Instead, run a single instance that processes all stations and use (see <a class="reference internal" href="#confval-pipelines.profiles"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles</span></code></a>)
-to define different workflows. Profiles let you run multiple independent pipelines
-within one process, avoiding the need for <code class="docutils literal notranslate"><span class="pre">scmlpick</span></code> aliases.</p>
+<p>Profiles divide one process. They do not select the neural network.
+<a class="reference internal" href="#confval-eqcct.architecture"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.architecture</span></code></a> is shared by every profile in that process.</p>
+<p>Use several profiles when the same picker must send picks to different groups,
+follow different location authors, or apply different region polygons. That is
+the usual operational layout: one EQCCT process, one profile per network region.</p>
+<p>Run a separate process when the architecture must differ. Give that process its
+own module name: a symbolic link to <code class="docutils literal notranslate"><span class="pre">bin/scmlpick</span></code>, its own
+<code class="docutils literal notranslate"><span class="pre">etc/&lt;name&gt;.cfg</span></code>, and its own <code class="docutils literal notranslate"><span class="pre">etc/key/&lt;name&gt;/</span></code> bindings. Each process
+loads one model and uses its own CPU and memory. Four architectures therefore
+mean four processes, not four profiles.</p>
 <p>Each profile can define its own:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#confval-pipelines.profiles.-name.pickTargetGroup"><code class="xref std std-confval docutils literal notranslate"><span class="pre">pipelines.profiles.$name.pickTargetGroup</span></code></a> all picks emitted by this profile are published to that specific messaging group.</p></li>
@@ -337,8 +337,8 @@ uses bindings to activate specific stations to be processed by an <code class="d
 <section id="where-to-configure">
 <h3>Where to Configure<a class="headerlink" href="#where-to-configure" title="Link to this heading"></a></h3>
 <ul class="simple">
-<li><p>In <a class="reference external" href="https://www.seiscomp.de/doc/apps/scconfig.html">scconfig</a> assign the binding to the desired stations (bindings tab).</p></li>
-<li><p>Or edit files under <code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT/etc/bindings/scmlpick/</span></code></p></li>
+<li><p>In <a class="reference external" href="https://www.seiscomp.de/doc/apps/scconfig.html">scconfig</a>, assign the binding to the stations.</p></li>
+<li><p>Or edit <code class="docutils literal notranslate"><span class="pre">$SEISCOMP_ROOT/etc/key/&lt;module&gt;/station_NET_STA</span></code>. <code class="docutils literal notranslate"><span class="pre">&lt;module&gt;</span></code> is <code class="docutils literal notranslate"><span class="pre">scmlpick</span></code>, or the name of the symbolic link when more than one architecture is running. <code class="docutils literal notranslate"><span class="pre">seiscomp</span> <span class="pre">update-config</span></code> writes the corresponding files under <code class="docutils literal notranslate"><span class="pre">etc/bindings</span></code>.</p></li>
 </ul>
 <p>Each binding enables picking for the stations <strong>bound</strong> to it:</p>
 <ul class="simple">
@@ -381,7 +381,7 @@ RecordStream endpoint.</p></li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Keep <a class="reference internal" href="#confval-eqcct.windowLength"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.windowLength</span></code></a>/<a class="reference internal" href="#confval-eqcct.timeShift"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeShift</span></code></a> and other configuration parameters (see <span class="xref std std-ref">Tuning</span>)
+<p>Keep <a class="reference internal" href="#confval-eqcct.windowLength"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.windowLength</span></code></a>/<a class="reference internal" href="#confval-eqcct.timeShift"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeShift</span></code></a> and other configuration parameters (see <a class="reference internal" href="#tuning"><span class="std std-ref">Tuning</span></a>)
 consistent with your real-time setup if you want comparable latency and behavior between modes.</p>
 </div>
 </section>
@@ -412,7 +412,7 @@ Time window for playback, applied to the chosen input source.</p></li>
 <h4>Output<a class="headerlink" href="#output" title="Link to this heading"></a></h4>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--output-file</span> <span class="pre">&lt;FILE&gt;</span></code>
-Write results to an XML file.</p></li>
+Write picks to this XML file. The file is replaced as results arrive and holds every pick from the run.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--database</span></code>
 Send results directly to the SeisComP database.</p></li>
 </ul>
@@ -421,7 +421,7 @@ Send results directly to the SeisComP database.</p></li>
 <h4>Ray parallelism (optional)<a class="headerlink" href="#ray-parallelism-optional" title="Link to this heading"></a></h4>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--cpu-number</span> <span class="pre">&lt;N&gt;</span></code>
-Number of CPUs available to Ray. If omitted, the value from the module configuration is used.</p></li>
+Overrides <a class="reference internal" href="#confval-ray.numCPUs"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numCPUs</span></code></a> for this run. In model-actor mode that is the number of processes that load the picker. If omitted, the value from the module configuration is used.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--max-tasks</span> <span class="pre">&lt;N&gt;</span></code>
 Maximum number of concurrent tasks sent to the predictor. If omitted, the configured
 default is used.</p></li>
@@ -449,7 +449,7 @@ default is used.</p></li>
 <span class="w">  </span>--recordstream<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--start<span class="w"> </span><span class="s2">&quot;2025-08-01 00:00:00&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--end<span class="w">   </span><span class="s2">&quot;2025-08-01 03:00:00&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--database
+<span class="w">  </span>--database<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-u<span class="w"> </span>user<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--debug
 </pre></div>
@@ -457,21 +457,44 @@ default is used.</p></li>
 </section>
 </section>
 <section id="tuning">
-<h2>Tuning<a class="headerlink" href="#tuning" title="Link to this heading"></a></h2>
+<span id="id6"></span><h2>Tuning<a class="headerlink" href="#tuning" title="Link to this heading"></a></h2>
+<section id="ml-algorithm-configuration">
+<h3>ML algorithm configuration<a class="headerlink" href="#ml-algorithm-configuration" title="Link to this heading"></a></h3>
 <p>Controls which pre-trained models are used and how strict the decision rules are.
 Select P/S models appropriate for your seismicity and set probability thresholds
 that govern when picks are emitted; overlap and batch size affect latency and throughput.</p>
 <ul class="simple">
+<li><p><a class="reference internal" href="#confval-eqcct.architecture"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.architecture</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.Pmodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Pmodel</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.eqcctPthr"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.eqcctPthr</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.eqcctSthr"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.eqcctSthr</span></code></a></p></li>
-<li><p><a class="reference internal" href="#confval-eqcct.eqcctOverlap"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.eqcctOverlap</span></code></a></p></li>
-<li><p><a class="reference internal" href="#confval-eqcct.eqcctBatchSize"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.eqcctBatchSize</span></code></a></p></li>
+<li><p><a class="reference internal" href="#confval-eqcct.gpuID"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.gpuID</span></code></a></p></li>
 </ul>
-<p>Defines the sliding-window strategy and submission timing for inference. These parameters
-control window length, overlap, pre-filter warm-up, station availability requirements, and
-the delays/waits that separate first/second computations and delayed-data paths.</p>
+<p>PhaseNet and EQTransformer ignore <a class="reference internal" href="#confval-eqcct.Smodel"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.Smodel</span></code></a>. Raise the P and S thresholds
+toward the values published with those models. The EQCCT defaults, 0.001 and 0.002,
+are much lower.</p>
+</section>
+<section id="data-sent-for-processing">
+<h3>Data sent for processing<a class="headerlink" href="#data-sent-for-processing" title="Link to this heading"></a></h3>
+<p>The model scores <a class="reference internal" href="#confval-eqcct.windowLength"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.windowLength</span></code></a> seconds (default 60). The process
+also keeps <a class="reference internal" href="#confval-eqcct.filterShift"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.filterShift</span></code></a> seconds before that window so the filter
+can warm up. A packet is therefore <code class="docutils literal notranslate"><span class="pre">windowLength</span> <span class="pre">+</span> <span class="pre">filterShift</span></code> seconds long.</p>
+<p>The next packet starts <code class="docutils literal notranslate"><span class="pre">windowLength</span> <span class="pre">-</span> <span class="pre">timeShift</span></code> seconds later. With
+<code class="docutils literal notranslate"><span class="pre">windowLength</span> <span class="pre">=</span> <span class="pre">60</span></code>, <code class="docutils literal notranslate"><span class="pre">filterShift</span> <span class="pre">=</span> <span class="pre">10</span></code>, and <code class="docutils literal notranslate"><span class="pre">timeShift</span> <span class="pre">=</span> <span class="pre">20</span></code>, each packet
+is 70 seconds and the step is 40 seconds. The 20 seconds of
+<a class="reference internal" href="#confval-eqcct.timeShift"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeShift</span></code></a> are the overlap that two consecutive packets both score.</p>
+<p>A station is sent when it holds a full packet. If its start is behind the newest
+complete packet by less than <a class="reference internal" href="#confval-eqcct.traceDelay"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.traceDelay</span></code></a> (default 120 seconds),
+it is caught up from its own start, one packet per pass. If it is behind by more
+than <code class="docutils literal notranslate"><span class="pre">traceDelay</span></code>, that old packet is not sent. The samples stay in memory and
+the station joins the live packet when it covers it. Samples older than
+<a class="reference internal" href="#confval-eqcct.timeRemoveTrace"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeRemoveTrace</span></code></a> (default 600 seconds) are removed.</p>
+<p>The package defaults are <code class="docutils literal notranslate"><span class="pre">filterShift</span> <span class="pre">=</span> <span class="pre">2.5</span></code> and <code class="docutils literal notranslate"><span class="pre">timeShift</span> <span class="pre">=</span> <span class="pre">30</span></code>. An
+operational configuration commonly sets them to 10 and 20. Keep one pair of
+values for a running system. Playback should use the same pair when the results
+are compared with real time.</p>
+<p>These parameters control that schedule:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#confval-eqcct.windowLength"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.windowLength</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.timeShift"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeShift</span></code></a></p></li>
@@ -485,12 +508,32 @@ the delays/waits that separate first/second computations and delayed-data paths.
 <li><p><a class="reference internal" href="#confval-eqcct.timeRemoveTrace"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.timeRemoveTrace</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-eqcct.traceDelay"><code class="xref std std-confval docutils literal notranslate"><span class="pre">eqcct.traceDelay</span></code></a></p></li>
 </ul>
-<p>Tunes parallelism and queueing for the predictor backend. Use these settings to balance
-CPU usage and concurrency against your latency budget.</p>
+</section>
+<section id="ray-configuration">
+<h3>Ray configuration<a class="headerlink" href="#ray-configuration" title="Link to this heading"></a></h3>
+<p><a class="reference internal" href="#confval-ray.numWorkers"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numWorkers</span></code></a> splits the station list across worker processes. It does
+not set how many Ray processes exist. The default is 1. Raise it only when one
+process is holding more stations than it can cut and return inside one step.
+<a class="reference internal" href="#confval-ray.numCPUs"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numCPUs</span></code></a> is the number of model processes started in <code class="docutils literal notranslate"><span class="pre">modelactor</span></code>
+mode. Each one loads the picker once. It is not the same setting as
+<a class="reference internal" href="#confval-ray.numWorkers"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numWorkers</span></code></a>.</p>
+<p><a class="reference internal" href="#confval-ray.execution"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.execution</span></code></a> is <code class="docutils literal notranslate"><span class="pre">modelactor</span></code> by default. Each Ray process loads the
+picker once and reuses it for every station it receives. <code class="docutils literal notranslate"><span class="pre">task</span></code> loads the picker
+inside a Ray task for every station. In that mode <a class="reference internal" href="#confval-ray.maxCalls"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.maxCalls</span></code></a> exits
+the worker after this many finished stations so its memory is returned. The
+station in progress is not interrupted. <code class="docutils literal notranslate"><span class="pre">modelactor</span></code> ignores <code class="docutils literal notranslate"><span class="pre">maxCalls</span></code>.</p>
+<p><a class="reference internal" href="#confval-ray.precision"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.precision</span></code></a> is <code class="docutils literal notranslate"><span class="pre">bf16</span></code> or <code class="docutils literal notranslate"><span class="pre">fp32</span></code>.</p>
 <ul class="simple">
+<li><p><a class="reference internal" href="#confval-ray.numWorkers"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numWorkers</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-ray.numCPUs"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.numCPUs</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-ray.maxTasksQueue"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.maxTasksQueue</span></code></a></p></li>
+<li><p><a class="reference internal" href="#confval-ray.execution"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.execution</span></code></a></p></li>
+<li><p><a class="reference internal" href="#confval-ray.precision"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.precision</span></code></a></p></li>
+<li><p><a class="reference internal" href="#confval-ray.maxCalls"><code class="xref std std-confval docutils literal notranslate"><span class="pre">ray.maxCalls</span></code></a></p></li>
 </ul>
+</section>
+<section id="locations-quality-control">
+<h3>Locations quality control<a class="headerlink" href="#locations-quality-control" title="Link to this heading"></a></h3>
 <p>Applies simple, rule-based checks to location results. Uncertainty and geometry thresholds
 determine whether an origin is assigned the “true” or “false” evaluation status; both
 statuses are configurable to match your operational workflow.</p>
@@ -503,29 +546,22 @@ statuses are configurable to match your operational workflow.</p>
 <li><p><a class="reference internal" href="#confval-qcheck.TrueOrgEvalStat"><code class="xref std std-confval docutils literal notranslate"><span class="pre">qcheck.TrueOrgEvalStat</span></code></a></p></li>
 <li><p><a class="reference internal" href="#confval-qcheck.FalseOrgEvalStat"><code class="xref std std-confval docutils literal notranslate"><span class="pre">qcheck.FalseOrgEvalStat</span></code></a></p></li>
 </ul>
-<div class="toctree-wrapper compound">
-</div>
 </section>
-<section id="ml-methods">
-<h2>ML methods<a class="headerlink" href="#ml-methods" title="Link to this heading"></a></h2>
-<div class="toctree-wrapper compound">
-</div>
-</section>
-<section id="resources-optimization">
-<h2>Resources Optimization<a class="headerlink" href="#resources-optimization" title="Link to this heading"></a></h2>
 </section>
 <section id="references">
 <h2>References<a class="headerlink" href="#references" title="Link to this heading"></a></h2>
-<p>You can cite in-text using footnote-style citations, for example:
-“As shown by Ross et al. <a class="reference internal" href="#ross2018" id="id6"><span>[ross2018]</span></a> …”</p>
 <div role="list" class="citation-list">
-<div class="citation" id="ross2018" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id6">ross2018</a><span class="fn-bracket">]</span></span>
-<p>Ross, Z.E., et al. (2018). Generalized Seismic Phase Detection with Deep Learning. <em>Bulletin of the Seismological Society of America</em>, 108(5), 2894–2901. <a class="reference external" href="https://doi.org/10.1785/0120180080">https://doi.org/10.1785/0120180080</a></p>
+<div class="citation" id="mousavi2020" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>mousavi2020<span class="fn-bracket">]</span></span>
+<p>Mousavi, S.M., Ellsworth, W.L., Zhu, W., Chuang, L.Y., and Beroza, G.C. (2020). Earthquake transformer—an attentive deep-learning model for simultaneous earthquake detection and phase picking. <em>Nature Communications</em>, 11, 3952. <a class="reference external" href="https://doi.org/10.1038/s41467-020-17591-w">https://doi.org/10.1038/s41467-020-17591-w</a></p>
 </div>
-<div class="citation" id="allen1982" role="doc-biblioentry">
-<span class="label"><span class="fn-bracket">[</span>allen1982<span class="fn-bracket">]</span></span>
-<p>Allen, R.V. (1982). Automatic phase pickers: Their present use and future prospects. <em>Bulletin of the Seismological Society of America</em>, 72(6), S225–S242.</p>
+<div class="citation" id="utrans" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>utrans<span class="fn-bracket">]</span></span>
+<p>U-Trans foundation encoder used by <code class="docutils literal notranslate"><span class="pre">utrans_eqcct</span></code>. <a class="reference external" href="https://doi.org/10.1038/s41598-026-41454-x">https://doi.org/10.1038/s41598-026-41454-x</a></p>
+</div>
+<div class="citation" id="zhu2019" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>zhu2019<span class="fn-bracket">]</span></span>
+<p>Zhu, W., and Beroza, G.C. (2019). PhaseNet: a deep-neural-network-based seismic arrival-time picking method. <em>Geophysical Journal International</em>, 216(1), 261–273. <a class="reference external" href="https://doi.org/10.1093/gji/ggy423">https://doi.org/10.1093/gji/ggy423</a></p>
 </div>
 </div>
 </section>
@@ -548,17 +584,46 @@ statuses are configurable to match your operational workflow.</p>
 </dd></dl>
 
 <dl class="std confval">
+<dt class="sig sig-object std" id="confval-eqcct.architecture">
+<span class="sig-name descname"><span class="pre">eqcct.architecture</span></span><a class="headerlink" href="#confval-eqcct.architecture" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>string</em></p>
+<p>Picker architecture to use. All options return P/S probability curves
+on 60 s, 3-component windows.
+&quot;eqcct&quot;: plain EQCCT compact convolutional transformer.
+&quot;utrans_eqcct&quot;: EQCCT picking heads fed by a pretrained U-Trans
+self-supervised foundation encoder (latent features concatenated as a
+4th input channel). See <a class="reference external" href="https://doi.org/10.1038/s41598-026-41454-x">https://doi.org/10.1038/s41598-026-41454-x</a>.
+When set to &quot;utrans_eqcct&quot;, Pmodel/Smodel below must point to
+Foundation-EQCCT checkpoints, not plain EQCCT weights.
+&quot;phasenet&quot;: official PhaseNet U-Net (Zhu and Beroza, 2019). Pmodel
+must point at the official 190703-214543 checkpoint directory.
+Smodel is ignored. Use probability thresholds around 0.3.
+&quot;eqtransformer&quot;: official EQTransformer (Mousavi et al., 2020).
+Pmodel must point at EqT_original_model.h5 or its directory.
+Smodel is ignored. Requires the tf-keras package. Published
+P/S thresholds for the mseed predictor are 0.1.
+Default is <code class="docutils literal notranslate"><span class="pre">eqcct</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
 <dt class="sig sig-object std" id="confval-eqcct.Pmodel">
 <span class="sig-name descname"><span class="pre">eqcct.Pmodel</span></span><a class="headerlink" href="#confval-eqcct.Pmodel" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>string</em></p>
-<p>EQCCT model to detect P phases.</p>
+<p>Model to detect P phases. Must match the architecture selected in
+&quot;architecture&quot;: a plain EQCCT checkpoint for &quot;eqcct&quot;, a fine-tuned
+Foundation-EQCCT checkpoint (U-Trans encoder + picking head, combined
+in one file) for &quot;utrans_eqcct&quot;, the official PhaseNet checkpoint
+directory for &quot;phasenet&quot;, or EqT_original_model.h5 for
+&quot;eqtransformer&quot;.</p>
 </dd></dl>
 
 <dl class="std confval">
 <dt class="sig sig-object std" id="confval-eqcct.Smodel">
 <span class="sig-name descname"><span class="pre">eqcct.Smodel</span></span><a class="headerlink" href="#confval-eqcct.Smodel" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>string</em></p>
-<p>EQCCT model to detect S phases.</p>
+<p>Model to detect S phases. Same architecture-dependent requirement as
+Pmodel above. Ignored when architecture is &quot;phasenet&quot; or
+&quot;eqtransformer&quot;.</p>
 </dd></dl>
 
 <dl class="std confval">
@@ -656,7 +721,7 @@ Default is <code class="docutils literal notranslate"><span class="pre">600</spa
 <dt class="sig sig-object std" id="confval-eqcct.traceDelay">
 <span class="sig-name descname"><span class="pre">eqcct.traceDelay</span></span><a class="headerlink" href="#confval-eqcct.traceDelay" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>int</em></p>
-<p>Minimum delay in seconds between the current time and the start time of data acquired to send data to delayed data processing.
+<p>A station this many seconds behind the newest complete window is not sent as its own old window. Its samples stay in memory and it is picked on the live window once that window is covered. A shorter gap is still sent from the station’s own start.
 Default is <code class="docutils literal notranslate"><span class="pre">120</span></code>.</p>
 </dd></dl>
 
@@ -696,7 +761,7 @@ Default is <code class="docutils literal notranslate"><span class="pre">1</span>
 <dt class="sig sig-object std" id="confval-eqcct.gpuID">
 <span class="sig-name descname"><span class="pre">eqcct.gpuID</span></span><a class="headerlink" href="#confval-eqcct.gpuID" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>int</em></p>
-<p>Id of GPU used for the prediction. If using CPU set to None.
+<p>GPU index passed to the picker. Set to -1 to run on CPU.
 Default is <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
 </dd></dl>
 
@@ -713,6 +778,38 @@ Default is <code class="docutils literal notranslate"><span class="pre">1</span>
 <span class="sig-name descname"><span class="pre">pipelines.profiles</span></span><a class="headerlink" href="#confval-pipelines.profiles" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>list:String</em></p>
 <p>Profile names must match the profiles in the bindings configuration.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.Standard">
+<span class="sig-name descname"><span class="pre">pipelines.Standard</span></span><a class="headerlink" href="#confval-pipelines.Standard" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>boolean</em></p>
+<p>If enabled, the module sends picks to the messaging system as soon as the module produces them. In the default setup, 1-minute windows are processed every 30 seconds.
+Default is <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.Simulation">
+<span class="sig-name descname"><span class="pre">pipelines.Simulation</span></span><a class="headerlink" href="#confval-pipelines.Simulation" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>boolean</em></p>
+<p>If enabled, the module sends picks simulating the true arrival time but includes a delay corresponding to the first processed window.
+Default is <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.Bulk">
+<span class="sig-name descname"><span class="pre">pipelines.Bulk</span></span><a class="headerlink" href="#confval-pipelines.Bulk" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>boolean</em></p>
+<p>If enabled, the module stores picks and sends them to the messaging system periodically, at a configurable time interval.
+Default is <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.bulkInverval">
+<span class="sig-name descname"><span class="pre">pipelines.bulkInverval</span></span><a class="headerlink" href="#confval-pipelines.bulkInverval" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Inverval in seconds used when bulk pick delivery strategy is enabled
+Default is <code class="docutils literal notranslate"><span class="pre">1800</span></code>.</p>
 </dd></dl>
 
 <div class="admonition note">
@@ -737,7 +834,23 @@ pipelines.profiles.c.value1<span class="w"> </span><span class="o">=</span><span
 <dt class="sig sig-object std" id="confval-pipelines.profiles.-name.pickTargetGroup">
 <span class="sig-name descname"><span class="pre">pipelines.profiles.$name.pickTargetGroup</span></span><a class="headerlink" href="#confval-pipelines.profiles.-name.pickTargetGroup" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>String</em></p>
-<p>This is the name of the group to send pick messages for specific profile
+<p>This is the name of the group to send pick messages for specific profile when standard pick delivery strategy is enabled
+Default is <code class="docutils literal notranslate"><span class="pre">PICK</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.profiles.-name.pickSimulTargetGroup">
+<span class="sig-name descname"><span class="pre">pipelines.profiles.$name.pickSimulTargetGroup</span></span><a class="headerlink" href="#confval-pipelines.profiles.-name.pickSimulTargetGroup" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>This is the name of the group to which pick messages will be sent for a specific profile when simulation pick delivery strategy is enabled
+Default is <code class="docutils literal notranslate"><span class="pre">PICK</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-pipelines.profiles.-name.pickBulkTargetGroup">
+<span class="sig-name descname"><span class="pre">pipelines.profiles.$name.pickBulkTargetGroup</span></span><a class="headerlink" href="#confval-pipelines.profiles.-name.pickBulkTargetGroup" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>String</em></p>
+<p>This is the name of the group to which pick messages will be sent for a specific profile when bulk pick delivery strategy is enabled.
 Default is <code class="docutils literal notranslate"><span class="pre">PICK</span></code>.</p>
 </dd></dl>
 
@@ -769,7 +882,7 @@ Default is <code class="docutils literal notranslate"><span class="pre">none</sp
 <dt class="sig sig-object std" id="confval-ray.numCPUs">
 <span class="sig-name descname"><span class="pre">ray.numCPUs</span></span><a class="headerlink" href="#confval-ray.numCPUs" title="Link to this definition"></a></dt>
 <dd><p>Type: <em>int</em></p>
-<p>Number of CPUs allocated for running the run_picker() to create the time chunks.
+<p>Size of the Ray CPU pool. This limits how many Python processes run picker work at once. It is not numWorkers.
 Default is <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p>
 </dd></dl>
 
@@ -779,6 +892,42 @@ Default is <code class="docutils literal notranslate"><span class="pre">5</span>
 <dd><p>Type: <em>int</em></p>
 <p>Maximum number of tasks that are sent to the predictor at the same time.
 Default is <code class="docutils literal notranslate"><span class="pre">50</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ray.numWorkers">
+<span class="sig-name descname"><span class="pre">ray.numWorkers</span></span><a class="headerlink" href="#confval-ray.numWorkers" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Number of groups to split stations. This partitions the station list. It does not set the number of Ray processes; that is numCPUs.
+Default is <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ray.execution">
+<span class="sig-name descname"><span class="pre">ray.execution</span></span><a class="headerlink" href="#confval-ray.execution" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>string</em></p>
+<p>How a station reaches the neural network. Used for eqcct, utrans_eqcct, phasenet and eqtransformer.
+&quot;modelactor&quot;: RAPID Model-Actor. Each process loads the picker once and reuses it. Default.
+&quot;task&quot;: previous behavior. Every station loads the picker inside a Ray task. Pair with maxCalls.
+Default is <code class="docutils literal notranslate"><span class="pre">modelactor</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ray.precision">
+<span class="sig-name descname"><span class="pre">ray.precision</span></span><a class="headerlink" href="#confval-ray.precision" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>string</em></p>
+<p>Compute precision for every picker.
+&quot;bf16&quot;: bfloat16 math, the RAPID precision that was fastest while staying close to float32 picks. Official weights stay float32. Default.
+&quot;fp32&quot;: full float32 math.
+Default is <code class="docutils literal notranslate"><span class="pre">bf16</span></code>.</p>
+</dd></dl>
+
+<dl class="std confval">
+<dt class="sig sig-object std" id="confval-ray.maxCalls">
+<span class="sig-name descname"><span class="pre">ray.maxCalls</span></span><a class="headerlink" href="#confval-ray.maxCalls" title="Link to this definition"></a></dt>
+<dd><p>Type: <em>int</em></p>
+<p>Task execution only. A worker process exits after this many finished stations so its RAM returns to the system. The station in progress is not interrupted. Ignored when execution is &quot;modelactor&quot;. 300 stations is about 2.5 hours at the current rate.
+Default is <code class="docutils literal notranslate"><span class="pre">300</span></code>.</p>
 </dd></dl>
 
 <dl class="std confval">
@@ -894,7 +1043,7 @@ Default is <code class="docutils literal notranslate"><span class="pre">false</s
 
   <div role="contentinfo">
     <p>&#169; Copyright 2024, TexNet.
-      <span class="lastupdated">Last updated on Oct 10, 2025.
+      <span class="lastupdated">Last updated on Nov 06, 2026.
       </span></p>
   </div>
 

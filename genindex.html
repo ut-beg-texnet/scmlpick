@@ -32,7 +32,7 @@
             TexNet
           </a>
               <div class="version">
-                Generated on 2025/10/10
+                Generated on 2026/11/06
               </div>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -227,6 +227,8 @@
 </li>
         <li><a href="apps/sceewv.html#confval-envalias">envalias</a>
 </li>
+        <li><a href="apps/scmlpick.html#confval-eqcct.architecture">eqcct.architecture</a>
+</li>
         <li><a href="apps/scmlpick.html#confval-eqcct.eqcctBatchSize">eqcct.eqcctBatchSize</a>
 </li>
         <li><a href="apps/scmlpick.html#confval-eqcct.eqcctOverlap">eqcct.eqcctOverlap</a>
@@ -349,15 +351,27 @@
 </li>
         <li><a href="apps/scqcalert.html#confval-pickName">pickName</a>
 </li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Bulk">pipelines.Bulk</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.bulkInverval">pipelines.bulkInverval</a>
+</li>
         <li><a href="apps/scmlpick.html#confval-pipelines.profiles">pipelines.profiles</a>
 </li>
         <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.authorTarget">pipelines.profiles.$name.authorTarget</a>
 </li>
         <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.locTargetGroup">pipelines.profiles.$name.locTargetGroup</a>
 </li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.pickBulkTargetGroup">pipelines.profiles.$name.pickBulkTargetGroup</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.pickSimulTargetGroup">pipelines.profiles.$name.pickSimulTargetGroup</a>
+</li>
         <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.pickTargetGroup">pipelines.profiles.$name.pickTargetGroup</a>
 </li>
         <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.region">pipelines.profiles.$name.region</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Simulation">pipelines.Simulation</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Standard">pipelines.Standard</a>
 </li>
         <li><a href="apps/sceewv.html#confval-port">port</a>
 </li>
@@ -415,9 +429,17 @@
 </li>
         <li><a href="apps/scqcalert.html#confval-qcMsgtype">qcMsgtype</a>
 </li>
+        <li><a href="apps/scmlpick.html#confval-ray.execution">ray.execution</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-ray.maxCalls">ray.maxCalls</a>
+</li>
         <li><a href="apps/scmlpick.html#confval-ray.maxTasksQueue">ray.maxTasksQueue</a>
 </li>
         <li><a href="apps/scmlpick.html#confval-ray.numCPUs">ray.numCPUs</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-ray.numWorkers">ray.numWorkers</a>
+</li>
+        <li><a href="apps/scmlpick.html#confval-ray.precision">ray.precision</a>
 </li>
         <li><a href="apps/sceewv.html#confval-timeafter">timeafter</a>
 </li>
@@ -498,6 +520,13 @@
 
       <ul>
         <li><a href="apps/sceewv.html#confval-envalias">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    eqcct.architecture
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-eqcct.architecture">configuration value</a>
 </li>
       </ul></li>
       <li>
@@ -988,6 +1017,20 @@
 </li>
       </ul></li>
       <li>
+    pipelines.Bulk
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Bulk">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    pipelines.bulkInverval
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.bulkInverval">configuration value</a>
+</li>
+      </ul></li>
+      <li>
     pipelines.profiles
 
       <ul>
@@ -1009,6 +1052,20 @@
 </li>
       </ul></li>
       <li>
+    pipelines.profiles.$name.pickBulkTargetGroup
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.pickBulkTargetGroup">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    pipelines.profiles.$name.pickSimulTargetGroup
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.profiles.-name.pickSimulTargetGroup">configuration value</a>
+</li>
+      </ul></li>
+      <li>
     pipelines.profiles.$name.pickTargetGroup
 
       <ul>
@@ -1023,12 +1080,28 @@
 </li>
       </ul></li>
       <li>
+    pipelines.Simulation
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Simulation">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    pipelines.Standard
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-pipelines.Standard">configuration value</a>
+</li>
+      </ul></li>
+      <li>
     port
 
       <ul>
         <li><a href="apps/sceewv.html#confval-port">configuration value</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     postProcFreq
 
@@ -1050,8 +1123,6 @@
         <li><a href="apps/scmlpick.html#confval-profiles.-name.filter">configuration value</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     profiles.$name.pickEnable
 
@@ -1235,6 +1306,20 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li>
+    ray.execution
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-ray.execution">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    ray.maxCalls
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-ray.maxCalls">configuration value</a>
+</li>
+      </ul></li>
+      <li>
     ray.maxTasksQueue
 
       <ul>
@@ -1248,6 +1333,20 @@
 
       <ul>
         <li><a href="apps/scmlpick.html#confval-ray.numCPUs">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    ray.numWorkers
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-ray.numWorkers">configuration value</a>
+</li>
+      </ul></li>
+      <li>
+    ray.precision
+
+      <ul>
+        <li><a href="apps/scmlpick.html#confval-ray.precision">configuration value</a>
 </li>
       </ul></li>
   </ul></td>
@@ -1318,7 +1417,7 @@
 
   <div role="contentinfo">
     <p>&#169; Copyright 2024, TexNet.
-      <span class="lastupdated">Last updated on Oct 10, 2025.
+      <span class="lastupdated">Last updated on Nov 06, 2026.
       </span></p>
   </div>
 
