@@ -19,7 +19,14 @@ seiscomp/share/scmlpick/tools/scmlpick-predicctor/predictor/__pycache__/
 seiscomp/share/scmlpick/results/logs/model.log
 seiscomp/share/scmlpick/tools/*.py
 
-# SCMLPick model files
+# Weight files for the four pickers are part of the module.
+# Ignore anything else that appears under model/.
 seiscomp/share/scmlpick/model/*
 !seiscomp/share/scmlpick/model/ModelPS/
 !seiscomp/share/scmlpick/model/ModelPS/**
+!seiscomp/share/scmlpick/model/EQTransformer/
+!seiscomp/share/scmlpick/model/EQTransformer/**
+!seiscomp/share/scmlpick/model/PhaseNet/
+!seiscomp/share/scmlpick/model/PhaseNet/**
+!seiscomp/share/scmlpick/model/UTrans/
+!seiscomp/share/scmlpick/model/UTrans/**

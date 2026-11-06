@@ -27,6 +27,10 @@ warnings.filterwarnings("ignore")
 from silence_tensorflow import silence_tensorflow
 silence_tensorflow()
 
+from .eqtransformer import load_eqtransformer_model
+from .phasenet import load_phasenet_model
+from .utrans_eqcct import load_utrans_eqcct_model
+
 def recall(y_true, y_pred):
     true_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true * y_pred, 0, 1)))
     possible_positives = tf.keras.backend.sum(tf.keras.backend.round(tf.keras.backend.clip(y_true, 0, 1)))
@@ -468,13 +472,28 @@ def load_eqcct_model(input_modelP, input_modelS):
     # log.write(f"*** Loading is complete!")
 
     return model
-        
+
+
+# Registry of supported picker architectures. Each entry is a callable with the
+# same signature as `load_eqcct_model`: (input_modelP, input_modelS) -> a
+# compiled tf.keras.Model whose `.predict(...)` returns (predP, predS), both
+# shape (batch, 6000, 1). A new architecture is registered here. PhaseNet keeps
+# that output contract, but its loader normalizes each window itself, so the
+# generator must not std-normalize those batches first.
+MODEL_LOADERS = {
+    "eqcct": load_eqcct_model,
+    "utrans_eqcct": load_utrans_eqcct_model,
+    "phasenet": load_phasenet_model,
+    "eqtransformer": load_eqtransformer_model,
+}
+
+
 def mseed_predictor(stream=None,
               filterShift=2.5,
               wfinfo=None,
-              files=None, 
+              files=None,
               P_threshold=0.1,
-              S_threshold=0.1, 
+              S_threshold=0.1,
               normalization_mode='std',
               overlap = 30,
               batch_size=500,
@@ -485,8 +504,12 @@ def mseed_predictor(stream=None,
               gpu_id=None,
               gpu_limit=None,
               stations_filters=None,
-              playback=False): 
- 
+              architecture='eqcct',
+              playback=False,
+              model=None,
+              precision='bf16',
+              detection_threshold=0.3):
+
     # _LOG.info("mseed_predictor: inicio")
 
     net, sta, t0, t1 = wfinfo
@@ -498,42 +521,123 @@ def mseed_predictor(stream=None,
     "S_threshold": S_threshold,
     "normalization_mode": normalization_mode,
     "overlap": overlap,
-    "batch_size": batch_size,    
+    "batch_size": batch_size,
     "gpu_id": gpu_id,
     "gpu_limit": gpu_limit,
     "p_model":p_model,
     "s_model":s_model,
+    "architecture": architecture,
     "stations_filters": stations_filters,
     "station": net_sta,
     "files":files,
     "t_ini": t0,
     "t_end":t1,
-    "playback":playback
+    "playback":playback,
+    "detection_threshold": detection_threshold,
     }
 
     if playback:
         task = [stream,net_sta,args]
     else:
         task = [stream.select(network=net, station=sta), net_sta, args]
-    picks = parallel_predict(task)
+    picks = parallel_predict(task, model=model, precision=precision)
     return (picks)
 
+# PhaseNet and UTrans put a false P on the left edge of every 60 s tensor.
+# PhaseNet's P softmax spikes there because padding="same" fills the edge
+# with zeros. UTrans does the same in production: about 19 % of its P picks
+# fall in the first 0.2 s of the window. The spike decays inside the first
+# second, and the S curve does not do it. Blank that second of P before peak
+# picking. Playback and real time both build a fresh 60 s tensor, so both go
+# through this path. The next window overlaps by timeShift (20 s), which is
+# longer than the blank, so a real P in that second is still inside the
+# previous window. EQCCT and EQTransformer are not in this set.
+P_EDGE_SECONDS = 1.0
+P_EDGE_ARCHITECTURES = frozenset(("phasenet", "utrans_eqcct"))
+
+
+def _p_edge_samples(sampling_rate, n_samples):
+    """Leading P samples that belong to the window edge, at this sample rate.
+
+    The count is one second of the samples that entered the network.
+    prepare_station_chunk resamples to 100 Hz when the trace is not already
+    there, and the rate stored on the window is the rate after that step.
+    A trace that stays at 40 Hz blanks 40 samples; one that stays at 250 Hz
+    blanks 250. The duration does not depend on a fixed 100 Hz.
+    """
+    n_samples = int(n_samples or 0)
+    try:
+        rate = float(sampling_rate)
+    except (TypeError, ValueError):
+        rate = 0.0
+    if not np.isfinite(rate) or rate <= 0.0:
+        # Header missing. The tensors in this predictor are 60 s windows,
+        # so the curve length still defines the rate.
+        rate = (n_samples / 60.0) if n_samples else 0.0
+    n_blank = int(round(P_EDGE_SECONDS * rate))
+    if n_samples:
+        n_blank = min(n_blank, n_samples)
+    return max(0, n_blank)
+
+
 # @ray.remote
-def parallel_predict(predict_args):
+def parallel_predict(predict_args, model=None, precision="bf16"):
     # stream, pos, st, args, out_dir= predict_args
     # stream, pos, st, args = predict_args
     stream, st, args = predict_args
-    model = load_eqcct_model(args["p_model"], args["s_model"])  
-    start_Predicting = time.time()   
+    architecture = args.get("architecture", "eqcct")
+    if model is None:
+        try:
+            loader = MODEL_LOADERS[architecture]
+        except KeyError:
+            raise ValueError(
+                f"Unknown picker architecture {architecture!r}. "
+                f"Valid options: {sorted(MODEL_LOADERS)}"
+            )
+        # Task mode loads a new model on every station. The policy has to be
+        # set before that construction. Model-actor mode passes the model it
+        # already loaded under the same policy.
+        from .precision import begin_precision
+        begin_precision(precision)
+        model = loader(args["p_model"], args["s_model"])
+    start_Predicting = time.time()
     meta, data_set = _readnparray(stream, args, st)
     batch_sizes = [args['batch_size'], 500, 250, 100, 50, 10, 5, 1]
     i = 0
     while True:
         # try:
-        params_pred = {'batch_size': batch_sizes[i], 'norm_mode': args['normalization_mode']}
+        norm_mode = args['normalization_mode']
+        # PhaseNet applies the official sliding mean/std inside its loader.
+        if architecture == 'phasenet':
+            norm_mode = 'none'
+        params_pred = {'batch_size': batch_sizes[i], 'norm_mode': norm_mode}
         pred_generator = PreLoadGeneratorTest(meta["trace_start_time"], data_set, **params_pred)
-        predP,predS = model.predict(pred_generator, verbose=0)
-        
+        predicted = model.predict(pred_generator, verbose=0)
+        if architecture == "eqtransformer":
+            predD, predP, predS = predicted
+            predD = np.asarray(predD, dtype=np.float32)
+            predP = np.asarray(predP, dtype=np.float32)
+            predS = np.asarray(predS, dtype=np.float32)
+            detection_memory = []
+            picks = []
+            for ix in range(len(predP)):
+                window_picks, detection_memory = _eqt_window_picks(
+                    meta, args, predD[ix], predP[ix], predS[ix], detection_memory, ix
+                )
+                picks.extend(window_picks)
+            end_Predicting = time.time()
+            delta = end_Predicting - start_Predicting
+            info = f"[{datetime.now()}] {st}: Finished the prediction in {round(delta,2)}s."
+            return {"picks": picks, "info": info}
+        predP, predS = predicted
+        predP = np.asarray(predP, dtype=np.float32)
+        predS = np.asarray(predS, dtype=np.float32)
+        if architecture in P_EDGE_ARCHITECTURES and predP.ndim >= 2 and predP.shape[1] > 0:
+            n_blank = _p_edge_samples(meta.get("sampling_rate"), predP.shape[1])
+            if n_blank > 0:
+                predP = np.array(predP, copy=True)
+                predP[:, :n_blank, ...] = 0.0
+
         #log.write(np.shape(predP))
         detection_memory = []
         prob_memory=[]
@@ -837,10 +941,14 @@ def _readnparray(stream, args, st_name):
     st_Z = st.select(channel="*Z")
     channel_out = st_Z[0].stats.channel if len(st_Z) > 0 else st[0].stats.channel
 
+    rate_trace = st_Z[0] if len(st_Z) > 0 else st[0]
     meta = {
         "start_time": span_start,
         "end_time":   span_end,
-        "trace_name": f"{st_name}.{st[0].stats.location}.{channel_out}"
+        "trace_name": f"{st_name}.{st[0].stats.location}.{channel_out}",
+        # Rate after prepare_station_chunk, which resamples anything that is
+        # not already 100 Hz. The P-edge blank uses this value.
+        "sampling_rate": float(rate_trace.stats.sampling_rate),
     }
 
     data_set = {}
@@ -1014,7 +1122,9 @@ class PreLoadGeneratorTest(tf.keras.utils.Sequence):
         'Updates indexes after each epoch'
         self.indexes = np.arange(len(self.list_IDs))
     
-    def _normalize(self, data, mode = 'max'):          
+    def _normalize(self, data, mode = 'max'):
+        if mode in (None, 'none'):
+            return data
         data -= np.mean(data, axis=0, keepdims=True)
         if mode == 'max':
             max_data = np.max(data, axis=0, keepdims=True)
@@ -1039,6 +1149,80 @@ class PreLoadGeneratorTest(tf.keras.utils.Sequence):
             X[i, :, :] = data                                                           
                            
         return X      
+
+def _eqt_matches(args, detection, pred_p, pred_s):
+    """Associate P and S peaks with a detection, as in EqT mseed_predictor.
+
+    A pick is kept only when the detection curve stays above
+    detection_threshold (default 0.3, the published mseed default) for at
+    least 0.1 s. P is the strongest peak in the second before the detection
+    and at least 0.1 s before S. S is the earliest peak inside the detection.
+    Peaks of P or S outside a detection are dropped.
+    """
+    from obspy.signal.trigger import trigger_onset
+
+    det = np.asarray(detection, dtype=np.float64).reshape(-1)
+    yh_p = np.asarray(pred_p, dtype=np.float64).reshape(-1)
+    yh_s = np.asarray(pred_s, dtype=np.float64).reshape(-1)
+    n = min(det.size, yh_p.size, yh_s.size)
+    det, yh_p, yh_s = det[:n], yh_p[:n], yh_s[:n]
+    det_thr = float(args.get("detection_threshold", 0.3))
+    intervals = trigger_onset(det, det_thr, det_thr)
+    p_peaks = _detect_peaks(yh_p, mph=args["P_threshold"], mpd=1)
+    s_peaks = _detect_peaks(yh_s, mph=args["S_threshold"], mpd=1)
+    matches = []
+    for onset, offset in intervals:
+        onset = int(onset)
+        offset = int(offset)
+        if offset - onset < 10:
+            continue
+        s_inside = [int(sample) for sample in s_peaks if onset < int(sample) < offset]
+        s_index = s_inside[0] if s_inside else None
+        if s_index is not None:
+            p_inside = [int(sample) for sample in p_peaks if onset - 100 < int(sample) < s_index - 10]
+        else:
+            p_inside = [int(sample) for sample in p_peaks if onset - 100 < int(sample) < offset]
+        p_index = max(p_inside, key=lambda sample: yh_p[sample]) if p_inside else None
+        if p_index is None and s_index is None:
+            continue
+        matches.append({
+            "onset": onset,
+            "p_index": p_index,
+            "p_prob": None if p_index is None else float(np.round(yh_p[p_index], 3)),
+            "s_index": s_index,
+            "s_prob": None if s_index is None else float(np.round(yh_s[s_index], 3)),
+        })
+    return matches
+
+
+def _eqt_window_picks(meta, args, detection, pred_p, pred_s, detection_memory, idx):
+    """One pick dict per detection. Overlapping windows skip a repeat within 2 s."""
+    start_time = meta["trace_start_time"][idx]
+    try:
+        start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S.%f")
+    except Exception:
+        start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+    picks = []
+    for match in _eqt_matches(args, detection, pred_p, pred_s):
+        ev_start = start_time + timedelta(seconds=match["onset"] / 100.0)
+        if any(abs((ev_start - previous).total_seconds()) < 2 for previous in detection_memory):
+            continue
+        pick, _, _ = _output_dict_prediction(
+            meta,
+            [match["p_index"]],
+            [match["p_prob"]],
+            [match["s_index"]],
+            [match["s_prob"]],
+            [],
+            [],
+            idx,
+            0,
+            0,
+        )
+        picks.append(pick)
+        detection_memory.append(ev_start)
+    return picks, detection_memory
+
 
 def _output_dict_prediction(meta, Ppicks, Pprob, Spicks, Sprob, detection_memory,prob_memory, idx, cq, cqq):
 

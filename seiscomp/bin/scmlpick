@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import os as _os, sys as _sys
+_PY = "/opt/seiscomp/share/scmlpick/pyenv/bin/python"
+if _os.path.isfile(_PY) and _os.path.realpath(_sys.executable) != _os.path.realpath(_PY):
+    _os.execv(_PY, [_PY] + _sys.argv)
+
 
 """
 Copyright (C) by TexNet/CISR
@@ -20,6 +25,7 @@ import seiscomp.datamodel as dm
 from seiscomp.core import Time, FloatArray
 from seiscomp import logging, geo
 from obspy import Stream, Trace, UTCDateTime, read
+from obspy.core import compatibility
 from pathlib import Path
 from itertools import product, count
 import seiscomp.io
@@ -193,6 +199,12 @@ class scmlpick(StreamApplication):
             self.eqcctSthr = self.configGetDouble('eqcct.eqcctSthr')
         except Exception as e:
             logging.info('eqcctSthr could not be read : %s' % e)
+        # Published EQTransformer mseed default. Other architectures ignore it.
+        self.detectionThr = 0.3
+        try:
+            self.detectionThr = self.configGetDouble('eqcct.detectionThr')
+        except Exception:
+            pass
         try:
             self.eqcctBatchSize = self.configGetInt('eqcct.eqcctBatchSize')
         except Exception as e:
@@ -205,6 +217,11 @@ class scmlpick(StreamApplication):
             self.gpuLimit = self.configGetInt('eqcct.gpuLimit')
         except Exception as e:
             logging.info('gpuLimit could not be read : %s' % e)
+        try:
+            self.architecture = self.configGetString('eqcct.architecture')
+        except Exception as e:
+            self.architecture = 'eqcct'
+            logging.info('architecture could not be read, defaulting to "eqcct" : %s' % e)
 
         self.profilesConfig()
 
@@ -228,6 +245,36 @@ class scmlpick(StreamApplication):
             self.numWorkers = self.configGetInt('ray.numWorkers')
         except Exception as e:
             logging.info('numWorkers could not be read : %s' % e)
+
+        try:
+            self.execution = self.configGetString('ray.execution').strip().lower()
+        except Exception as e:
+            self.execution = 'modelactor'
+            logging.info('execution could not be read, defaulting to "modelactor" : %s' % e)
+        if self.execution not in ('modelactor', 'task'):
+            logging.info('unknown ray.execution %s, using modelactor' % self.execution)
+            self.execution = 'modelactor'
+
+        try:
+            self.precision = self.configGetString('ray.precision').strip().lower()
+        except Exception as e:
+            self.precision = 'bf16'
+            logging.info('precision could not be read, defaulting to "bf16" : %s' % e)
+        if self.precision == 'bfloat16':
+            self.precision = 'bf16'
+        if self.precision == 'float32':
+            self.precision = 'fp32'
+        if self.precision not in ('bf16', 'fp32'):
+            logging.info('unknown ray.precision %s, using bf16' % self.precision)
+            self.precision = 'bf16'
+
+        try:
+            self.maxCalls = self.configGetInt('ray.maxCalls')
+        except Exception as e:
+            self.maxCalls = 300
+            logging.info('maxCalls could not be read, defaulting to 300 : %s' % e)
+        if self.maxCalls < 1:
+            self.maxCalls = 300
 
         #qcheck
         try:
@@ -343,9 +390,12 @@ class scmlpick(StreamApplication):
             # self.global_delayStaSend_counts = mp.Array('i', [0]*self.numWorkers)
             self.global_staSet_counts = mp.Array('i', [0]*self.numWorkers)
             self.stream_lock = threading.Lock()
+            self._minute_flight = threading.Lock()
+            self._hold_until = 0.0
 
             self.worker_station_groups = self.divide_stations(self.all_station_codes, self.numWorkers)
             self.worker_queues = []
+            self.worker_control_queues = []
             self.worker_processes = []
             self.init_worker_processes()
 
@@ -365,7 +415,11 @@ class scmlpick(StreamApplication):
         # ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False, runtime_env={"working_dir": predictorPath})
         # ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=True, runtime_env={"env_vars": {"RAY_DEDUP_LOGS": "0"}})
         ray.init(ignore_reinit_error=True, num_cpus=self.numCPUs, logging_level=stdlogging.FATAL, log_to_driver=False)
-        logging.info("Allocates %s amount of CPUs for the function of creating tasks with ray" % self.numCPUs)
+        logging.info(
+            "Ray CPU pool is %s (ray.numCPUs). Station groups are %s (ray.numWorkers). "
+            "Those are different knobs: numWorkers only splits the station list."
+            % (self.numCPUs, self.numWorkers)
+        )
 
         self.df_filters = self.get_filters()
 
@@ -374,6 +428,7 @@ class scmlpick(StreamApplication):
             "share_path" : self.ei.shareDir(),
             "P_threshold": self.eqcctPthr,
             "S_threshold": self.eqcctSthr,
+            "detection_threshold": self.detectionThr,
             "normalization_mode": "std",
             "overlap": self.timeShift,
             "batch_size": self.eqcctBatchSize,
@@ -381,6 +436,7 @@ class scmlpick(StreamApplication):
             # "model": model,
             "p_model": self.eqcct_Pmodel,
             "s_model": self.eqcct_Smodel,
+            "architecture": self.architecture,
             "numCPUs": self.numCPUs,
             "gpu_id": self.gpuID,
             "gpu_limit": self.gpuLimit,
@@ -392,8 +448,41 @@ class scmlpick(StreamApplication):
             "files": relevant_files,
             "maxTasksQueue": self.maxTasksQueue,
             "time_list": times_list,
-            "availability": availability
+            "availability": availability,
+            "execution": self.execution,
+            "precision": self.precision,
+            "maxCalls": self.maxCalls,
             }
+
+        self.model_actors = []
+        if self.execution == "modelactor":
+            from predictor.model_actor import create_picker_actors
+            logging.info(
+                "Model-actor execution, precision %s, architecture %s. "
+                "Starting %s actors; each loads the picker once."
+                % (self.precision, self.architecture, self.numCPUs)
+            )
+            self.model_actors = create_picker_actors(
+                self.numCPUs,
+                self.architecture,
+                self.eqcct_Pmodel,
+                self.eqcct_Smodel,
+                self.precision,
+            )
+            self.params["model_actors"] = self.model_actors
+        else:
+            # max_calls cannot be passed through .options() on this Ray.
+            # The remote function is built here so ray.maxCalls is the limit.
+            self.params["picker_remote"] = ray.remote(
+                max_calls=int(self.maxCalls), max_retries=1
+            )(scmlpick.picker)
+            logging.info(
+                "Task execution, precision %s, architecture %s. "
+                "Each station loads the picker. A worker process exits after %s "
+                "stations (ray.maxCalls) and Ray starts a new one, so the RAM "
+                "of that process returns to the system."
+                % (self.precision, self.architecture, self.maxCalls)
+            )
 
         if self.standard:
             logging.info("Standard pick delivery strategy active %s" % self.standard)
@@ -480,6 +569,179 @@ class scmlpick(StreamApplication):
         tr_cut.stats.starttime = starttime
 
         return tr_cut
+
+    def _exact_fit_append(self, existing, new_tr, buffers):
+        """Append new_tr when merge(method=1, fill_value='interpolate') would only concatenate.
+
+        ObsPy treats that case as delta == 0: same id, sampling rate, calib and dtype,
+        and the next sample starts one sample after the current end. The new Trace
+        views a spare buffer, so the history is copied only when that buffer grows.
+        The previous Trace object is left unchanged (streamPick may still hold it).
+        Returns None for gaps, overlaps or a mismatched header; the caller uses merge.
+        """
+        if existing.id != new_tr.id:
+            return None
+        if existing.stats.sampling_rate != new_tr.stats.sampling_rate:
+            return None
+        if existing.stats.calib != new_tr.stats.calib:
+            return None
+        if existing.data.dtype != new_tr.data.dtype:
+            return None
+        if isinstance(existing.data, np.ma.MaskedArray) or isinstance(new_tr.data, np.ma.MaskedArray):
+            return None
+        if existing.stats.starttime > new_tr.stats.starttime:
+            return None
+        sr = existing.stats.sampling_rate
+        if not sr:
+            return None
+        n_old = len(existing.data)
+        n_new = len(new_tr.data)
+        if n_old == 0 or n_new == 0 or existing.stats.npts != n_old:
+            return None
+        delta = (new_tr.stats.starttime - existing.stats.endtime) * sr
+        delta = int(compatibility.round_away(delta)) - 1
+        if delta != 0:
+            return None
+        n = n_old + n_new
+        buf = buffers.get(existing.id)
+        base = existing.data.base
+        reusable = (
+            buf is not None
+            and base is buf
+            and buf.dtype == existing.data.dtype
+            and buf.shape[0] >= n
+        )
+        if not reusable:
+            cap = max(n, n + int(sr * 60))
+            buf = np.empty(cap, dtype=existing.data.dtype)
+            buf[:n_old] = existing.data
+            buffers[existing.id] = buf
+        buf[n_old:n] = new_tr.data
+        out = Trace(data=buf[:n], header={
+            'network': existing.stats.network,
+            'station': existing.stats.station,
+            'location': existing.stats.location,
+            'channel': existing.stats.channel,
+            'sampling_rate': existing.stats.sampling_rate,
+            'starttime': existing.stats.starttime,
+            'calib': existing.stats.calib,
+        })
+        if out.data.base is not buf or len(out.data) != n or out.stats.npts != n:
+            buffers.pop(existing.id, None)
+            return None
+        return out
+
+    @staticmethod
+    def _stream_from_packets(meta, blob):
+        st = Stream()
+        if blob is None:
+            for net, sta, loc, chan, sr, start, data in meta:
+                st.append(Trace(data=data, header={
+                    'network': net,
+                    'station': sta,
+                    'location': loc,
+                    'channel': chan,
+                    'sampling_rate': sr,
+                    'starttime': UTCDateTime(start),
+                }))
+            return st
+        offset = 0
+        for net, sta, loc, chan, sr, start, npts in meta:
+            data = np.array(blob[offset:offset + npts], dtype=np.float64, copy=True)
+            offset += npts
+            st.append(Trace(data=data, header={
+                'network': net,
+                'station': sta,
+                'location': loc,
+                'channel': chan,
+                'sampling_rate': sr,
+                'starttime': UTCDateTime(start),
+            }))
+        return st
+
+    def _slice_bounds(self, trace, starttime, endtime):
+        """Sample range of Trace.slice(nearest_sample=True).
+
+        i1 is exclusive. The returned time is the time of sample i0, which is
+        what ObsPy stores as the sliced trace's starttime.
+        """
+        npts = int(trace.stats.npts)
+        sr = float(trace.stats.sampling_rate)
+        t0 = trace.stats.starttime
+        if npts <= 0 or not sr:
+            return 0, 0, t0
+        if starttime is None or starttime <= t0:
+            i0 = 0
+        elif starttime > trace.stats.endtime:
+            return npts, npts, t0 + npts * trace.stats.delta
+        else:
+            i0 = int(compatibility.round_away((starttime - t0) * sr))
+            if i0 < 0:
+                i0 = 0
+            elif i0 >= npts:
+                return npts, npts, t0 + npts * trace.stats.delta
+        kept_start = t0 + i0 * trace.stats.delta
+        n_after = npts - i0
+        if endtime is None:
+            return i0, npts, kept_start
+        delta = int(compatibility.round_away((endtime - kept_start) * sr) - n_after + 1)
+        if delta >= 0:
+            return i0, npts, kept_start
+        if endtime < kept_start:
+            return i0, i0, kept_start
+        total = n_after + delta
+        if endtime == kept_start:
+            total = 1
+        if total < 0:
+            total = 0
+        elif total > n_after:
+            total = n_after
+        return i0, i0 + total, kept_start
+
+    def _owned_samples(self, trace, starttime, endtime, dtype=None):
+        """Copy the sliced samples so later edits cannot change them.
+
+        Masked gaps are filled with zeros before the copy.
+        """
+        i0, i1, kept_start = self._slice_bounds(trace, starttime, endtime)
+        raw = trace.data
+        if np.ma.isMaskedArray(raw):
+            raw = np.ma.filled(raw, 0.0)
+        if i1 <= i0:
+            out_dtype = raw.dtype if dtype is None else dtype
+            return np.zeros(0, dtype=out_dtype), kept_start
+        piece = raw[i0:i1]
+        if dtype is None:
+            data = np.array(piece, copy=True)
+        else:
+            data = np.array(piece, dtype=dtype, copy=True)
+        return data, kept_start
+
+    def _trace_from_samples(self, trace, data, starttime):
+        if len(data) == 0:
+            return None
+        return Trace(data=data, header={
+            'network': trace.stats.network,
+            'station': trace.stats.station,
+            'location': trace.stats.location,
+            'channel': trace.stats.channel,
+            'sampling_rate': trace.stats.sampling_rate,
+            'starttime': starttime,
+            'calib': trace.stats.calib,
+        })
+
+    def _rebuild_stream_index(self, stream, stream_index):
+        stream_index.clear()
+        for i, trc in enumerate(stream):
+            key = (trc.stats.network, trc.stats.station, trc.stats.channel)
+            if key not in stream_index:
+                stream_index[key] = i
+
+    def _rebuild_pick_index(self, stream_pick, pick_index):
+        pick_index.clear()
+        for i, trc in enumerate(stream_pick):
+            if trc.id not in pick_index:
+                pick_index[trc.id] = i
 
     def _pacer_pick_id(self, p):
         try:
@@ -645,7 +907,7 @@ class scmlpick(StreamApplication):
             except ValueError:
                 continue
         
-        # Si no se pudo convertir en ninguno de los formatos
+        # None of the accepted formats matched.
         logging.error(f"Invalid start time format: '{time_str}'. "
                     f"Expected 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD'.")
         self.handleClose()
@@ -812,18 +1074,27 @@ class scmlpick(StreamApplication):
     def init_worker_processes(self):
 
         self.worker_result_queues = []
+        self.worker_control_queues = []
 
         for i, group in enumerate(self.worker_station_groups):
             input_queue = mp.Queue()
-            result_queue = mp.Queue()
+            # A Queue would hand this to a background thread. That thread waits
+            # behind the threads still pickling waveform records, so a slice
+            # request sat there for the whole collect. A pipe writes it now.
+            control_queue, control_send = mp.Pipe(duplex=False)
+            # The result used to sit in a Queue feeder thread. The worker went
+            # back to records and held the interpreter, so that thread could
+            # not write the packet. send() writes it before the next record.
+            result_recv, result_send = mp.Pipe(duplex=False)
             # p = mp.Process(target=self.worker_loop, args=(i, group, input_queue, result_queue, self.global_staSend_counts, self.global_delayStaSend_counts, self.global_staSet_counts))
-            p = mp.Process(target=self.worker_loop, args=(i, group, input_queue, result_queue, self.global_staSend_counts, self.global_staSet_counts))
+            p = mp.Process(target=self.worker_loop, args=(i, group, control_queue, input_queue, result_send, self.global_staSend_counts, self.global_staSet_counts))
             p.start()
             self.worker_queues.append(input_queue)
-            self.worker_result_queues.append(result_queue)
+            self.worker_control_queues.append(control_send)
+            self.worker_result_queues.append(result_recv)
             self.worker_processes.append(p)
 
-    def worker_loop(self, worker_id, station_list, input_queue, result_queue, global_staSend_counts, global_staSet_counts):
+    def worker_loop(self, worker_id, station_list, control_queue, input_queue, result_queue, global_staSend_counts, global_staSet_counts):
         """Loop executed by each worker process."""
 
         logPath = os.path.join(self.ei.logDir(), f"scmlpick")
@@ -861,21 +1132,46 @@ class scmlpick(StreamApplication):
         staSend = []
         staSet = set()
         # delayStaSend = []
+        # First matching (net, sta, chan) in stream, and full id in streamPick.
+        # Same selection the linear scans used. Rebuilt when those lists shrink.
+        stream_index = {}
+        pick_index = {}
+        # Spare sample buffers for exact-fit appends. Keyed by full trace id.
+        grow_buffers = {}
+        fast_n = 0
+        merge_n = 0
+        last_asm_log = 0.0
 
         running = True
+        last_delay_warn = 0.0
         # buffered_msgs = []
 
         while True:
 
+            # Control messages (PAUSE, RESUME, GET_RESULTS, RESET, TRIM_STREAMS)
+            # must not wait behind the waveform backlog.
+            msg = None
             try:
-                msg = input_queue.get(timeout=0.1)
-            except queue.Empty:
-                continue
+                if control_queue.poll():
+                    msg = control_queue.recv()
+            except EOFError:
+                break
             except Exception as e:
-                stdlogging.exception(f"[Worker {worker_id}] Unexpected error while reading input_queue: {e}")
+                stdlogging.exception(f"[Worker {worker_id}] Unexpected error while reading control_queue: {e}")
                 continue
+
+            if msg is None:
+                # Keep merging waveforms while a picker window is being built.
+                # PAUSE only acknowledges the snapshot; it does not stop acquisition.
+                try:
+                    msg = input_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    stdlogging.exception(f"[Worker {worker_id}] Unexpected error while reading input_queue: {e}")
+                    continue
             # except Exception as e:
-            #     result_queue.put(("ERROR", worker_id, f"{type(e).__name__}: {e}"))
+            #     result_queue.send(("ERROR", worker_id, f"{type(e).__name__}: {e}"))
             #     continue
 
             # msg = input_queue.get()
@@ -884,8 +1180,7 @@ class scmlpick(StreamApplication):
                 break
 
             elif msg == "PAUSE":
-                running = False
-                result_queue.put("PAUSED")
+                result_queue.send("PAUSED")
                 # continue
 
             elif msg == "RESUME":
@@ -894,7 +1189,7 @@ class scmlpick(StreamApplication):
 
             elif msg == "GET_RESULTS":
                 #logging.debug(f"[Worker {worker_id}] Received GET_RESULTS")
-                result_queue.put((worker_id, {
+                result_queue.send((worker_id, {
                     "stream": stream,
                     "staSend": staSend,
                     "staSet": list(staSet),
@@ -934,20 +1229,207 @@ class scmlpick(StreamApplication):
                 slice_times = instructions.get("slice_times", [])
                 delete_ids = set(instructions.get("delete_ids", []))
 
+                # Last matching instruction wins, applied to the original trace,
+                # which is what the nested scan did when several rows shared an id.
+                slices_by_id = defaultdict(list)
+                for s in slice_times:
+                    slices_by_id[s["id"]].append(s)
+
                 for i, tr in enumerate(stream):
-                    for s in slice_times:
-                        if tr.id == s["id"]:
-                            try:
-                                stream[i] = tr.slice(starttime=UTCDateTime(s["start"]), endtime=tr.stats.endtime)
-                            except Exception as e:
-                                stdlogging.error(f"[Worker {worker_id}] Error slicing {tr.id}: {e}")
+                    specs = slices_by_id.get(tr.id)
+                    if not specs:
+                        continue
+                    for s in specs:
+                        try:
+                            stream[i] = tr.slice(starttime=UTCDateTime(s["start"]), endtime=tr.stats.endtime)
+                        except Exception as e:
+                            stdlogging.error(f"[Worker {worker_id}] Error slicing {tr.id}: {e}")
+                    grow_buffers.pop(tr.id, None)
 
                 stdlogging.debug(f"[Worker {worker_id}] streamPick size before delete: {len(streamPick)}")
                 streamPick.traces = [tr for tr in streamPick if tr.id not in delete_ids]
                 # streamPick = Stream([tr for tr in streamPick if tr.id not in delete_ids])
+                self._rebuild_pick_index(streamPick, pick_index)
                 stdlogging.debug(f"[Worker {worker_id}] streamPick size after delete: {len(streamPick)}")
 
-            elif running:
+            elif msg == "WINDOW_CANDIDATES" or (isinstance(msg, tuple) and msg[0] == "SLICE_COHORT"):
+                # One task must be one shared minute. Taking every trace from
+                # its own start mixed stations that were minutes apart and
+                # turned each straggler into its own small packet.
+                try:
+                    n_stream = len(stream)
+                    dur_stream = 0.0
+                    by_id = {}
+                    for i, trc in enumerate(stream):
+                        dur_stream += float(trc.stats.endtime - trc.stats.starttime)
+                        by_id[trc.id] = i
+                    n_pick = len(streamPick)
+                    dur_pick = 0.0
+                    for trc in streamPick:
+                        dur_pick += float(trc.stats.endtime - trc.stats.starttime)
+                    sta_send_lookup = set(staSend)
+                    if msg == "WINDOW_CANDIDATES":
+                        counts = {}
+                        seen = set()
+                        for trc in streamPick:
+                            if trc.stats.station not in sta_send_lookup or trc.id in seen:
+                                continue
+                            seen.add(trc.id)
+                            index = by_id.get(trc.id)
+                            if index is None:
+                                continue
+                            live = stream[index]
+                            duration = float(live.stats.endtime - live.stats.starttime)
+                            if duration + 1e-3 < self.windowLength + self.filterShift:
+                                continue
+                            key = int(round(float(live.stats.starttime.timestamp) / 2.0)) * 2
+                            counts[key] = counts.get(key, 0) + 1
+                        n_joined = 0
+                        joined = set()
+                        for trc in stream:
+                            if trc.id in joined or trc.stats.station not in sta_send_lookup:
+                                continue
+                            joined.add(trc.id)
+                            n_joined += 1
+                        result_queue.send((worker_id, {
+                            "starts": list(counts.items()),
+                            "n_joined": n_joined,
+                            "n_stream": n_stream,
+                            "dur_stream": dur_stream,
+                            "n_pick": n_pick,
+                            "dur_pick": dur_pick,
+                            "staSend": list(staSend),
+                            "staSet": list(staSet),
+                        }))
+                    else:
+                        target = float(msg[1])
+                        span = float(msg[2])
+                        step = float(msg[3])
+                        do_jump = bool(msg[4])
+                        t_slice = time.perf_counter()
+                        tol = 2.5
+                        chunks = []
+                        meta = []
+                        kept = []
+                        seen = set()
+                        for trc in streamPick:
+                            if trc.id in seen:
+                                continue
+                            seen.add(trc.id)
+                            if trc.stats.station not in sta_send_lookup:
+                                kept.append(trc)
+                                continue
+                            index = by_id.get(trc.id)
+                            if index is None:
+                                continue
+                            live = stream[index]
+                            start = float(live.stats.starttime.timestamp)
+                            end = float(live.stats.endtime.timestamp)
+                            duration = end - start
+                            covers = end + 1e-3 >= target + span - tol and duration + 1e-3 >= span
+                            # Jump only past traceDelay. A shorter gap is still
+                            # unprocessed data and is sent from its own start.
+                            jump_after = float(self.traceDelay)
+                            if jump_after < step:
+                                jump_after = step
+                            if abs(start - target) <= tol and covers:
+                                wstart = live.stats.starttime
+                            elif do_jump and start < target - jump_after and covers:
+                                wstart = UTCDateTime(target)
+                            else:
+                                wstart = None
+                            if wstart is not None:
+                                # Copy the window first. The tail is a second copy,
+                                # so later appends cannot overwrite the packet.
+                                samples, piece_start = self._owned_samples(
+                                    live, wstart, wstart + span, dtype=np.float64)
+                                tail, tail_start = self._owned_samples(
+                                    live, wstart + step, live.stats.endtime)
+                                if len(samples):
+                                    meta.append((
+                                        live.stats.network,
+                                        live.stats.station,
+                                        live.stats.location,
+                                        live.stats.channel,
+                                        float(live.stats.sampling_rate),
+                                        float(piece_start.timestamp),
+                                        int(samples.shape[0]),
+                                    ))
+                                    chunks.append(samples)
+                                trimmed = self._trace_from_samples(live, tail, tail_start)
+                                grow_buffers.pop(live.id, None)
+                                if trimmed is not None:
+                                    stream[index] = trimmed
+                                    if float(trimmed.stats.endtime - trimmed.stats.starttime) + 1e-3 >= span:
+                                        kept.append(trimmed)
+                                continue
+                            if do_jump and start < target - jump_after:
+                                dest = UTCDateTime(target + step)
+                                if not (live.stats.endtime > dest):
+                                    dest = live.stats.endtime - 1.0
+                                    if dest <= live.stats.starttime:
+                                        continue
+                                tail, tail_start = self._owned_samples(
+                                    live, dest, live.stats.endtime)
+                                trimmed = self._trace_from_samples(live, tail, tail_start)
+                                grow_buffers.pop(live.id, None)
+                                if trimmed is not None:
+                                    stream[index] = trimmed
+                                    if float(trimmed.stats.endtime - trimmed.stats.starttime) + 1e-3 >= span:
+                                        kept.append(trimmed)
+                                continue
+                            kept.append(live)
+                        streamPick.traces = kept
+                        self._rebuild_pick_index(streamPick, pick_index)
+                        if chunks:
+                            blob = np.concatenate(chunks)
+                            if blob.dtype != np.float64:
+                                blob = blob.astype(np.float64, copy=False)
+                        else:
+                            blob = np.zeros(0, dtype=np.float64)
+                        t_ready = time.perf_counter()
+                        payload = {
+                            "meta": meta,
+                            "n_stream": n_stream,
+                            "dur_stream": dur_stream,
+                            "n_pick": n_pick,
+                            "dur_pick": dur_pick,
+                            "staSend": list(staSend),
+                            "staSet": list(staSet),
+                            "shm_path": "",
+                        }
+                        # Writing these bytes down the pipe took ~30 s. The
+                        # packet is a file on the ram disk; the message only
+                        # carries the path.
+                        if blob.nbytes:
+                            path = f"/dev/shm/scmlpick-{worker_id}-{time.time_ns()}.f64"
+                            raw = np.ascontiguousarray(blob).tobytes()
+                            with open(path, "wb") as handle:
+                                handle.write(raw)
+                            payload["shm_path"] = path
+                        result_queue.send((worker_id, payload))
+                        t_put = time.perf_counter()
+                        stdlogging.info(
+                            f"[Worker {worker_id}] slice n={len(meta)} "
+                            f"bytes={int(blob.nbytes)} "
+                            f"cut={t_ready - t_slice:.3f}s put={t_put - t_ready:.3f}s"
+                        )
+                except Exception:
+                    stdlogging.exception(f"[Worker {worker_id}] cohort window failed")
+                    result_queue.send((worker_id, {
+                        "starts": [],
+                        "n_joined": 0,
+                        "meta": [],
+                        "data": np.zeros(0, dtype=np.float64),
+                        "n_stream": len(stream) if stream is not None else 0,
+                        "dur_stream": 0.0,
+                        "n_pick": len(streamPick) if streamPick is not None else 0,
+                        "dur_pick": 0.0,
+                        "staSend": list(staSend),
+                        "staSet": list(staSet),
+                    }))
+
+            elif isinstance(msg, dict):
                 try:
                     rec_dict = msg
 
@@ -958,8 +1440,6 @@ class scmlpick(StreamApplication):
                     loc = rec_dict["location"]
                     chan = rec_dict["channel"]
                     sampFreq = rec_dict["sampling_rate"]
-                    start_time = pd.to_datetime(str(startTime))
-                    end_time = pd.to_datetime(str(endTime))
                     traceID = f'{net}.{sta}.{loc}.{chan}'
 
                     net_sta = f"{net}.{sta}"
@@ -981,7 +1461,7 @@ class scmlpick(StreamApplication):
                         'channel': chan,
                         'npts': len(data),
                         'sampling_rate': sampFreq,
-                        'starttime': UTCDateTime(start_time)
+                        'starttime': startTime
                     }
                     tr = Trace(data=data, header=header)
 
@@ -995,31 +1475,61 @@ class scmlpick(StreamApplication):
                     data_lag = now - endTime
 
                     if data_lag > max_lag_seconds:
-                        stdlogging.warning(f"[Worker {worker_id}] Delayed data detected for {net}.{sta}.{chan}: lag={data_lag:.2f}s")
+                        now_mono = time.time()
+                        if now_mono - last_delay_warn >= 30:
+                            stdlogging.warning(f"[Worker {worker_id}] Delayed data detected for {net}.{sta}.{chan}: lag={data_lag:.2f}s")
+                            last_delay_warn = now_mono
 
                     if now < self.startTime:
                         stdlogging.debug('Waiting for the processing start time %s' % self.startTime)
 
                     if stream:
-                        index, trace = next(((i, t) for i, t in enumerate(stream) if t.stats.network == net and t.stats.station == sta and t.stats.channel == chan),(None, None))
+                        key = (net, sta, chan)
+                        index = stream_index.get(key)
+                        if (
+                            index is None
+                            or index >= len(stream)
+                            or stream[index].stats.network != net
+                            or stream[index].stats.station != sta
+                            or stream[index].stats.channel != chan
+                        ):
+                            index, trace = next(((i, t) for i, t in enumerate(stream) if t.stats.network == net and t.stats.station == sta and t.stats.channel == chan), (None, None))
+                            if index is not None:
+                                stream_index[key] = index
+                        else:
+                            trace = stream[index]
                         if index is not None and trace is not None:
-                            tempSt = Stream([trace, tr])
-                            # tempSt.merge(method=1, fill_value=0)
-                            tempSt.merge(method=1, fill_value="interpolate")
-                            tnew =  tempSt[0]
+                            tnew = self._exact_fit_append(trace, tr, grow_buffers)
+                            if tnew is None:
+                                tempSt = Stream([trace, tr])
+                                # tempSt.merge(method=1, fill_value=0)
+                                tempSt.merge(method=1, fill_value="interpolate")
+                                tnew = tempSt[0]
+                                grow_buffers.pop(tnew.id, None)
+                                merge_n += 1
+                            else:
+                                fast_n += 1
                             stream[index] = tnew
+                            now_mono = time.time()
+                            if now_mono - last_asm_log >= 60:
+                                stdlogging.info(
+                                    f"[Worker {worker_id}] trace assembly fast={fast_n} merge={merge_n}"
+                                )
+                                last_asm_log = now_mono
                         else:
                             stream.append(tr)
+                            stream_index[key] = len(stream) - 1
                             continue
                         if not trace or (stream[index].stats.endtime - stream[index].stats.starttime) <= (self.windowLength + self.filterShift) or stream[index].stats.endtime <= self.startTime:
                             continue
                     else:
                         stream.append(tr)
+                        stream_index[(net, sta, chan)] = len(stream) - 1
                         continue
 
                     if stream[index].stats.endtime < self.startTime +  timedelta(seconds=self.windowLength):
                         # stream[index].trim(self.startTime-self.filterShift, UTCDateTime(end_time), pad=True, fill_value=0)
-                        trimmed = self.safe_trim_edge_pad(stream[index],self.startTime - self.filterShift,UTCDateTime(end_time))
+                        trimmed = self.safe_trim_edge_pad(stream[index],self.startTime - self.filterShift,endTime)
                         if trimmed is not None:
                             stream[index] = trimmed
                         continue
@@ -1042,7 +1552,7 @@ class scmlpick(StreamApplication):
 
                         try:
                             # stream[index].trim(new_start, UTCDateTime(end_time), pad=True, fill_value=0)
-                            trimmed = self.safe_trim_edge_pad(stream[index],new_start,UTCDateTime(end_time))
+                            trimmed = self.safe_trim_edge_pad(stream[index],new_start,endTime)
                             if trimmed is not None:
                                 stream[index] = trimmed
                                 stdlogging.info(f"Trimmed using aligned second: {new_start}")
@@ -1053,12 +1563,16 @@ class scmlpick(StreamApplication):
 
 
                     if stream[index].stats.endtime - stream[index].stats.starttime >= self.windowLength + self.filterShift:
-                        index_found = next((j for j, tr in enumerate(streamPick) if tr.id == traceID), None)
+                        index_found = pick_index.get(traceID)
+                        if index_found is None or index_found >= len(streamPick) or streamPick[index_found].id != traceID:
+                            index_found = next((j for j, trp in enumerate(streamPick) if trp.id == traceID), None)
                         if index_found is None:
                             streamPick.append(stream[index])
+                            pick_index[traceID] = len(streamPick) - 1
                             stasPick.add(stream[index].stats.station)
                         else:
                             streamPick[index_found] = stream[index]
+                            pick_index[traceID] = index_found
                             stasPick.add(stream[index].stats.station)
                     else:
                         continue
@@ -1072,15 +1586,24 @@ class scmlpick(StreamApplication):
                     if removed_streams:
                         stdlogging.info(f"Removed streams, (length > {self.timeRemoveTrace} secs):")
                         stdlogging.info("\n".join(str(trace) for trace in removed_streams))
+                        for gone in removed_streams:
+                            grow_buffers.pop(gone.id, None)
+                        self._rebuild_stream_index(stream, stream_index)
 
-                    # Check delay for stations in memory
-                    for i,trace in enumerate(streamPick):
-                        sta = streamPick[i].stats.station
-                        if sta in staSend and sta not in staSet:
-                            delayEnd = UTCDateTime(str(Time.GMT())) - trace.stats.endtime # Leave here but this time is different than the one use in oneMinuteStream (to evaluate).
-                            delayStart = UTCDateTime(str(Time.GMT())) - trace.stats.starttime # Same than oneMinuteStream this is the correct time to count the delay.
-                            if delayEnd >= self.firstWait or delayStart >= self.firstWait + self.windowLength:
-                                staSet.add(sta)
+                    # Check delay for stations in memory.
+                    # One clock reading per record: the previous code asked for
+                    # the clock twice per trace, which only moved these delays
+                    # by the time spent inside the loop.
+                    if streamPick and staSend:
+                        now_gmt = UTCDateTime(str(Time.GMT()))
+                        sta_send_lookup = set(staSend)
+                        for trace in streamPick:
+                            sta = trace.stats.station
+                            if sta in sta_send_lookup and sta not in staSet:
+                                delayEnd = now_gmt - trace.stats.endtime # Leave here but this time is different than the one use in oneMinuteStream (to evaluate).
+                                delayStart = now_gmt - trace.stats.starttime # Same than oneMinuteStream this is the correct time to count the delay.
+                                if delayEnd >= self.firstWait or delayStart >= self.firstWait + self.windowLength:
+                                    staSet.add(sta)
 
                     global_staSend_counts[worker_id] = len(staSend)
                     # global_delayStaSend_counts[worker_id] = len(delayStaSend)
@@ -1088,9 +1611,7 @@ class scmlpick(StreamApplication):
 
                 except Exception as e:
                     stdlogging.exception(f"Unhandled error in worker {worker_id}")
-                    # result_queue.put(("ERROR", worker_id, str(e)))
-            else:
-                time.sleep(0.05)
+                    # result_queue.send(("ERROR", worker_id, str(e)))
 
     def _paramset_to_dict(self, pset):
         """Flatten DataModel::ParameterSet to a {name: value} dict."""
@@ -1309,67 +1830,64 @@ class scmlpick(StreamApplication):
     def handleRecord(self, rec):
         #logging.debug(f"[Main] handleRecord called at {UTCDateTime.now()}")
         self.recordDispatch(rec)
-        for i, q in enumerate(self.worker_queues):
-            try:
-                qsize = q.qsize()
-                if qsize > 100:
-                    logging.warning(f"[Main] Queue size for worker {i} is high: {qsize}")
-                # else:
-                #     logging.debug(f"[Main] Queue size for worker {i}: {qsize}")
-            except NotImplementedError:
-                logging.debug(f"[Main] Queue size not supported for worker {i}")
+        now_mono = time.time()
+        if now_mono - getattr(self, "_last_qwarn", 0) >= 30:
+            self._last_qwarn = now_mono
+            for i, q in enumerate(self.worker_queues):
+                try:
+                    qsize = q.qsize()
+                    if qsize > 100:
+                        logging.warning(f"[Main] Queue size for worker {i} is high: {qsize}")
+                except NotImplementedError:
+                    logging.debug(f"[Main] Queue size not supported for worker {i}")
 
+        if self.stream_lock.locked() or time.time() < self._hold_until:
+            return
+        total_staSend = sum(self.global_staSend_counts[:])
+        total_staSet = sum(self.global_staSet_counts[:])
+        if total_staSend < self.minStasBulk or total_staSet < self.minStasBulk:
+            return
+        # One pass at a time. Threads that waited on the lock each sent again
+        # and split one minute into a small packet plus the real one.
+        if not self._minute_flight.acquire(blocking=False):
+            return
         threading.Thread(target=self.run_minute_stream_in_thread, daemon=True).start()
 
     def run_minute_stream_in_thread(self):
-        if self.stream_lock.locked():
-            return
+        try:
+            if self.stream_lock.locked():
+                return
 
-        total_staSend = sum(self.global_staSend_counts[:])
-        total_staSet = sum(self.global_staSet_counts[:])
-        # total_delayStaSend = sum(self.global_delayStaSend_counts[:])
+            total_staSend = sum(self.global_staSend_counts[:])
+            total_staSet = sum(self.global_staSet_counts[:])
+            if total_staSend < self.minStasBulk or total_staSet < self.minStasBulk:
+                return
 
-        # if self.global_staSend_count.value < self.minStasBulk or self.global_staSet_count.value < self.minStasBulk:
-        if total_staSend < self.minStasBulk or total_staSet < self.minStasBulk:
-            return
-
-        with self.stream_lock:
-            try:
-                self.run_minute_stream()
-                logging.debug("Running run_minute_stream in new thread")
-            except Exception as e:
-                logging.error(f"[run_minute_stream_in_thread] Exception: {e}")
+            with self.stream_lock:
+                try:
+                    self.run_minute_stream()
+                    logging.debug("Running run_minute_stream in new thread")
+                except Exception as e:
+                    logging.error(f"[run_minute_stream_in_thread] Exception: {e}")
+        finally:
+            self._minute_flight.release()
 
     def run_minute_stream(self):
-
-        # streams, staSend,  staSet, delayStaSend, streamPicks, delayStreams = self.gather_worker_results()
-        streams, staSend,  staSet, streamPicks = self.gather_worker_results()
-
-        total_stream_traces = sum(len(st) for st in streams)
-        total_stream_duration = sum(
-            sum((tr.stats.endtime - tr.stats.starttime) for tr in st)
-            for st in streams
-        )
-
-        total_pick_traces = sum(len(st) for st in streamPicks)
-        total_pick_duration = sum(
-            sum((tr.stats.endtime - tr.stats.starttime) for tr in st)
-            for st in streamPicks
-        )
-
-        logging.info(f"[Summary] Total stream traces: {total_stream_traces}, total duration: {total_stream_duration:.1f} s")
-        logging.info(f"[Summary] Total streamPick traces: {total_pick_traces}, total duration: {total_pick_duration:.1f} s")
-        logging.info(f"[Summary] staSend size: {len(staSend)}, staSet size: {len(staSet)}")
+        # The wait gate used to pickle every waveform first. That copy is what
+        # stretched each cycle past the 40 s step and let the buffers reach
+        # timeRemoveTrace. Counts already live on the workers.
+        total_staSend = sum(self.global_staSend_counts[:])
+        total_staSet = sum(self.global_staSet_counts[:])
 
         self.sendNow = False
         if self.wait:
             delay = UTCDateTime(str(Time.GMT())) - self.sendTime
             if delay >= self.maxWait:
                 self.wait = False
-            elif delay >= self.secondWait and len(staSend) > 0:
+            elif delay >= self.secondWait and total_staSend > 0:
                 self.sendNow = True
 
-        if (len(staSend) >= self.minStasBulk and len(staSet) >= self.minStasBulk and self.wait == False) or self.sendNow:
+        if (total_staSend >= self.minStasBulk and total_staSet >= self.minStasBulk and self.wait == False) or self.sendNow:
 
             if self.sendNow:
                 logging.info(f"Sending now due to second delay")
@@ -1380,26 +1898,17 @@ class scmlpick(StreamApplication):
                 self.sendTime = UTCDateTime(str(Time.GMT()))
                 self.wait = True
 
-            tp = 'realtime'
-
-            for q in self.worker_queues:
-                q.put("PAUSE")
-
-            for result_q in self.worker_result_queues:
-                while True:
-                    status = result_q.get()
-                    if status == "PAUSED":
-                        break
-
-            self.minuteStream(tp,self.params,streamPicks,streams,staSend)
-            #self.reset_worker_output()
+            sent = self.minuteStream('realtime', self.params)
+            if not sent:
+                self.wait = False
+                self.sendNow = False
 
     def gather_worker_results(self):
 
         worker_results = {}
 
-        for q in self.worker_queues:
-            q.put("GET_RESULTS")
+        for q in self.worker_control_queues:
+            q.send("GET_RESULTS")
 
         logging.warning(f"Started {len(self.worker_queues)} worker processes.")
 
@@ -1407,7 +1916,7 @@ class scmlpick(StreamApplication):
             try:
                 start_time = time.time()
                 #worker_id, result = result_q.get(timeout=2.5)
-                worker_id, result = result_q.get()
+                worker_id, result = result_q.recv()
                 worker_results[worker_id] = result
                 logging.debug(f"[Main] Got result from worker {worker_id} in {time.time() - start_time:.3f} sec")
             except queue.Empty:
@@ -1441,9 +1950,9 @@ class scmlpick(StreamApplication):
         return streams, combined_staSend, combined_staSet, streamPicks
 
     def reset_worker_output(self):
-        for q in self.worker_queues:
-            q.put("RESET")
-            q.put("RESUME")
+        for q in self.worker_control_queues:
+            q.send("RESET")
+            q.send("RESUME")
 
     def recordDispatch(self, rec):
         # try:
@@ -1508,70 +2017,152 @@ class scmlpick(StreamApplication):
                 delayStream = Stream([trace for trace in delayStream if trace.stats.station != station_tnew])
         return(streamPick,delayStream)
 
-    def minuteStream(self,tp,params,streamPicks,streams,staSend):
-        oneMinuteStream = Stream()
+    def _recv_worker(self, conn):
+        """Read one worker reply. The waveform bytes travel outside pickle."""
+        msg = conn.recv()
+        if not (isinstance(msg, tuple) and len(msg) == 2):
+            return msg
+        worker_id, result = msg
+        if isinstance(result, dict) and "shm_path" in result:
+            path = result.pop("shm_path")
+            if path:
+                try:
+                    with open(path, "rb") as handle:
+                        raw = handle.read()
+                    result["data"] = np.frombuffer(raw, dtype=np.float64).copy()
+                finally:
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+            else:
+                result["data"] = np.zeros(0, dtype=np.float64)
+        return worker_id, result
 
-        # Process the one-minute stream
-        for streamPick in streamPicks:
-            toRemove = []
-            for i,trace in enumerate(streamPick):
-                if streamPick[i].stats.station in staSend:
-                    duration = streamPick[i].stats.endtime - streamPick[i].stats.starttime
-                    Nminutes = int(duration // self.windowLength)
-                    if Nminutes > 0:
-                        startMinute = streamPick[i].stats.starttime
-                        endMinute = streamPick[i].stats.starttime + (Nminutes*self.windowLength) + self.filterShift
-                        if endMinute > streamPick[i].stats.endtime and Nminutes > 1:
-                            Nminutes -= 1
-                            endMinute = startMinute + (Nminutes * self.windowLength) + self.filterShift
-                        if Nminutes > 0:
-                            traceMin = trace.slice(
-                                            starttime=startMinute,
-                                            endtime=endMinute
-                                            )
-                            oneMinuteStream.append(traceMin)
-                            toRemove.append(i)
-                        else:
-                            logging.info(f"This should never happen, Trying to send a trace with less than a minute duration {streamPick[i]}")
-                    else:
-                        logging.info(f"This should never happen, Trying to send a trace with less than a minute duration{streamPick[i]}")
-                        continue
+    def _worker_round(self, message):
+        for q in self.worker_control_queues:
+            q.send(message)
+        parts = []
+        for result_q in self.worker_result_queues:
+            _worker_id, result = self._recv_worker(result_q)
+            parts.append(result)
+        return parts
 
-        for i in range(self.numWorkers):
-            trim_instructions = {
-                "slice_times": [],
-                "delete_ids": []
-            }
+    def _choose_cohorts(self, parts, step):
+        # Minutes within one step of the newest start are the live edge.
+        # A start older than that, but still inside traceDelay, is sent from
+        # its own start so the samples in between are not dropped. Only a
+        # start older than traceDelay is left for the live minute to absorb.
+        counts = {}
+        for result in parts:
+            for start, n in result.get("starts", []):
+                if int(n) <= 0:
+                    continue
+                counts[int(start)] = counts.get(int(start), 0) + int(n)
+        if not counts:
+            return [], 0
+        ordered = sorted(counts.items())
+        newest = ordered[-1][0]
+        horizon = newest - float(step) - 2.5
+        jump_after = float(self.traceDelay)
+        if jump_after < float(step):
+            jump_after = float(step)
+        limit = newest - jump_after
+        recent = [item for item in ordered if item[0] >= horizon]
+        if not recent:
+            recent = [ordered[-1]]
+        if len(recent) <= 3:
+            chosen = list(recent)
+        else:
+            biggest = max(recent, key=lambda item: item[1])
+            newest_item = recent[-1]
+            older = [item for item in recent if item[0] not in (biggest[0], newest_item[0])]
+            chosen = [biggest, newest_item]
+            if older:
+                chosen.append(older[-1])
+            chosen = sorted({item[0]: item for item in chosen}.values())
+        catchup = [item for item in ordered if limit <= item[0] < horizon]
+        if catchup:
+            chosen.append(catchup[0])
+            chosen = sorted({item[0]: item for item in chosen}.values())
+        skipped = len([item for item in ordered if item[0] < limit])
+        return chosen, skipped
 
-            for tr in oneMinuteStream:
-                trace_id = tr.id
+    def minuteStream(self, tp, params):
+        # Real-time scoring uses the last 60 s of each trace it is given.
+        # Every trace in one task therefore has to cover the same minute.
+        # A station that already has that minute is sent now, even if only a
+        # few stations are there yet. Holding it would publish the pick late.
+        span = float(self.windowLength + self.filterShift)
+        step = float(self.windowLength - self.timeShift)
+        if step <= 0:
+            step = float(self.windowLength)
 
-                trim_instructions["slice_times"].append({
-                    "id": trace_id,
-                    "start": tr.stats.endtime - self.timeShift - self.filterShift
-                })
+        parts = self._worker_round("WINDOW_CANDIDATES")
+        n_stream = sum(int(p["n_stream"]) for p in parts)
+        dur_stream = sum(float(p["dur_stream"]) for p in parts)
+        n_pick = sum(int(p["n_pick"]) for p in parts)
+        dur_pick = sum(float(p["dur_pick"]) for p in parts)
+        sta_send = []
+        sta_set = set()
+        for p in parts:
+            sta_send.extend(p.get("staSend", []))
+            sta_set.update(p.get("staSet", []))
+        logging.info(f"[Summary] Total stream traces: {n_stream}, total duration: {dur_stream:.1f} s")
+        logging.info(f"[Summary] Total streamPick traces: {n_pick}, total duration: {dur_pick:.1f} s")
+        logging.info(f"[Summary] staSend size: {len(sta_send)}, staSet size: {len(sta_set)}")
 
-                if tr.stats.station in staSend:
-                    trim_instructions["delete_ids"].append(trace_id)
+        chosen, skipped = self._choose_cohorts(parts, step)
+        if not chosen:
+            self._hold_until = time.time() + 5.0
+            logging.info("ONE MINUTE STREAM windows=0")
+            return 0
+        if skipped:
+            logging.info(
+                f"Skipped {skipped} cohorts older than {int(self.traceDelay)}s; "
+                f"those traces join the live minute"
+            )
+        newest = max(start for start, _count in chosen)
+        live_pool = [item for item in chosen if item[0] >= newest - step - 2.5]
+        if not live_pool:
+            live_pool = chosen
+        live_target = max(live_pool, key=lambda item: item[1])[0]
+        sent = 0
+        for _index, (target, _count) in enumerate(chosen):
+            do_jump = target == live_target
+            t_collect = time.time()
+            sliced = self._worker_round(("SLICE_COHORT", float(target), span, step, do_jump))
+            t_after_collect = time.time()
+            meta = []
+            blobs = []
+            for result in sliced:
+                meta.extend(result.get("meta", []))
+                data = result.get("data")
+                if data is not None and len(data):
+                    blobs.append(data)
+            if not meta:
+                continue
+            blob = np.concatenate(blobs) if blobs else np.zeros(0, dtype=np.float64)
+            sent += 1
+            startMinute = UTCDateTime(float(target))
+            endMinute = startMinute + span
+            stream_ref = ray.put((meta, blob))
+            t_after_put = time.time()
+            self.task_queue.put(self._launch_run_picker(startMinute, endMinute, stream_ref, params))
+            self.log_queue_size()
+            logging.info(
+                f"Task for data {startMinute}, {endMinute}, "
+                f"{len(meta)} traces, window {sent}/{len(chosen)}, "
+                f"collect={t_after_collect - t_collect:.1f}s put={t_after_put - t_after_collect:.1f}s"
+            )
 
-            self.worker_queues[i].put(("TRIM_STREAMS", trim_instructions))
+        logging.info(f"ONE MINUTE STREAM windows={sent}")
         self.reset_worker_output()
-
-        logging.info(f"ONE MINUTE STREAM")
-        for i, trace in enumerate(oneMinuteStream):
-            logging.info(f'{trace}')
-
         for i in range(self.numWorkers):
             self.global_staSend_counts[i] = 0
-            # self.global_delayStaSend_counts[i] = 0
             self.global_staSet_counts[i] = 0
-
-        # Run EQCCT picker
-        stream_ref = ray.put(oneMinuteStream)
-        self.task_queue.put(scmlpick.run_picker.remote(startMinute,endMinute,stream_ref,params))
-        self.log_queue_size()
-        logging.info(f"Task for data {startMinute}, {endMinute}, {oneMinuteStream} assigned.")
-        logging.info(f"The main process continues to generate and launch tasks.")
+        logging.info("The main process continues to generate and launch tasks.")
+        return sent
 
     def checkChann(self, tnew, stasPick, streamPick, staSend):
         if not tnew:
@@ -1640,6 +2231,18 @@ class scmlpick(StreamApplication):
                         break
         return jobs
 
+    def _launch_run_picker(self, start_time, end_time, stream_ref, params):
+        """Dispatch one time window.
+
+        In model-actor mode the CPU pool is already held by the actors, so
+        this dispatcher asks for no CPU of its own. In task mode it keeps the
+        previous cost of one CPU.
+        """
+        remote_fn = scmlpick.run_picker
+        if getattr(self, "execution", "modelactor") == "modelactor":
+            remote_fn = scmlpick.run_picker.options(num_cpus=0)
+        return remote_fn.remote(start_time, end_time, stream_ref, params)
+
     @staticmethod
     @ray.remote(max_retries=1)
     def run_picker(start_time,end_time,stream_ref,params):
@@ -1648,6 +2251,10 @@ class scmlpick(StreamApplication):
             stream = ray.get(stream_ref)
         else:
             stream = stream_ref
+        if isinstance(stream, tuple) and len(stream) == 2 and isinstance(stream[0], list):
+            stream = scmlpick._stream_from_packets(stream[0], stream[1])
+        elif isinstance(stream, list):
+            stream = scmlpick._stream_from_packets(stream, None)
         # Get picker tasks
         start_time = UTCDateTime(start_time)
         end_time = UTCDateTime(end_time)
@@ -1696,12 +2303,30 @@ class scmlpick(StreamApplication):
         # TASK_TIMEOUT = 300
 
         stream_ref_pick = ray.put(stream)
+
+        def submit_job(job):
+            if params.get("execution", "modelactor") == "modelactor":
+                actors = params["model_actors"]
+                turn = params.get("_actor_turn", 0)
+                params["_actor_turn"] = turn + 1
+                return actors[turn % len(actors)].predict_station.remote(
+                    job, stream_ref_pick, params_ref
+                )
+            # Task mode. max_calls exits the worker after N finished stations.
+            # The station in progress is not cut; Ray reads its result first.
+            picker_remote = params.get("picker_remote")
+            if picker_remote is None:
+                picker_remote = ray.remote(max_calls=int(params.get("maxCalls", 300)), max_retries=1)(
+                    scmlpick.picker
+                )
+            return picker_remote.remote(job, stream_ref_pick, params_ref)
+
         for _ in range(min(max_tasks_queue, total)):
             try:
                 job = next(it)
                 # key = scmlpick.job_key(job)
                 # if ray.get(registry.add_if_absent.remote(key)):
-                tasks_queue.append(scmlpick.picker.remote(job, stream_ref_pick, params_ref))
+                tasks_queue.append(submit_job(job))
                 # else:
                     # print(f"[dedup] skipped {key}")
             except StopIteration:
@@ -1730,7 +2355,7 @@ class scmlpick(StreamApplication):
                     job = next(it)
                     # key = scmlpick.job_key(job)
                     # if ray.get(registry.add_if_absent.remote(key)):
-                    tasks_queue.append(scmlpick.picker.remote(job, stream_ref_pick, params_ref))
+                    tasks_queue.append(submit_job(job))
                     # else:
                         # logging.debug(f"[dedup] skipped {key}")
             except StopIteration:
@@ -1795,7 +2420,6 @@ class scmlpick(StreamApplication):
         return results
 
     @staticmethod
-    @ray.remote(max_retries=1)
     def picker(task,stream_ref_pick,params_ref):
         try:
             if isinstance(stream_ref_pick, ray.ObjectRef):
@@ -1821,11 +2445,14 @@ class scmlpick(StreamApplication):
                             overwrite     = params['overwrite'],
                             p_model       = params['p_model'],
                             s_model       = params['s_model'],
+                            architecture  = params['architecture'],
                             numCPUs       = params['numCPUs'],
                             gpu_id        = params['gpu_id'],
                             gpu_limit     = params['gpu_limit'],
                             stations_filters = params["df_filters"],
-                            playback = params["playback"])
+                            playback = params["playback"],
+                            precision = params.get("precision", "bf16"),
+                            detection_threshold = params.get("detection_threshold", 0.3))
             picks["ok"] = True
             return picks
         except Exception as e:
@@ -1845,6 +2472,10 @@ class scmlpick(StreamApplication):
                     SpickID, pick = self.scPick(pickData, 'S', 'SdateTime', 's_prob')
                     ep.add(pick)
                     resPicks.append(pick)
+            elif pickData['SdateTime'] and getattr(self, 'architecture', None) == 'eqtransformer':
+                SpickID, pick = self.scPick(pickData, 'S', 'SdateTime', 's_prob')
+                ep.add(pick)
+                resPicks.append(pick)
         if self.playback:
             self.writeXMLObj(ep)
             # self.writeXMLObj(comm)
@@ -1892,14 +2523,20 @@ class scmlpick(StreamApplication):
         phase = Phase()
         phase.setCode(phaseHint)
         pick.setPhaseHint(phase)
-        pick.setMethodID('EQCCT')
+        method_id = {
+            'eqcct': 'EQCCT',
+            'utrans_eqcct': 'UTRANS',
+            'phasenet': 'PhaseNet',
+            'eqtransformer': 'EQTransformer',
+        }.get(getattr(self, 'architecture', 'eqcct'), 'EQCCT')
+        pick.setMethodID(method_id)
         pick.setEvaluationMode(1)
         pick.setCreationInfo(ci)
 
         filterAndProp = "  ".join([f"Probability_{propValue}", f"Filter: {filterID}"])
         pick.setFilterID(filterAndProp)
 
-        logging.debug("Pick produced by EQCCT %s.%s" % (pick.waveformID().networkCode(), pick.waveformID().stationCode()))
+        logging.debug("Pick produced by %s %s.%s" % (method_id, pick.waveformID().networkCode(), pick.waveformID().stationCode()))
         logging.debug('%s' % pick)
 
         if self.playback:
@@ -2187,7 +2824,7 @@ class scmlpick(StreamApplication):
                 stream = None
                 stream_ref = ray.put(stream)
                 params = self.params
-                result = ray.get(scmlpick.run_picker.remote(start_time,end_time,stream_ref,params))
+                result = ray.get(self._launch_run_picker(start_time, end_time, stream_ref, params))
                 # result = scmlpick.run_picker(start_time,end_time,stream_ref,params)
                 self.scPhase(result)
             finally:
@@ -2221,9 +2858,9 @@ if __name__ == '__main__':
     script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     num_cores = os.cpu_count() - 1
     core_mappings = {
-        # "scmlpick": list(range(4, 46))
-        script_name : list(range(num_cores))
+        script_name : list(range(num_cores)),
+#    "scmlpick": list(range(0, 25)),
     }
-    listCores = core_mappings.get(script_name, list(range(0, 4)))
+    listCores = core_mappings.get(script_name, list(range(0, num_cores)))
     set_cpu_affinity(listCores)
     sys.exit(main(sys.argv))

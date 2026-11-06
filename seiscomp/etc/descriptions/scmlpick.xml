@@ -11,14 +11,40 @@
                                 </description>
                         </parameter>
                         <group name="eqcct">
+                                <parameter name="architecture" type="string" default="eqcct">
+                                        <description>
+                                            Picker architecture to use. All options return P/S probability curves
+                                            on 60 s, 3-component windows.
+                                            "eqcct": plain EQCCT compact convolutional transformer.
+                                            "utrans_eqcct": EQCCT picking heads fed by a pretrained U-Trans
+                                            self-supervised foundation encoder (latent features concatenated as a
+                                            4th input channel). See https://doi.org/10.1038/s41598-026-41454-x.
+                                            When set to "utrans_eqcct", Pmodel/Smodel below must point to
+                                            Foundation-EQCCT checkpoints, not plain EQCCT weights.
+                                            "phasenet": official PhaseNet U-Net (Zhu and Beroza, 2019). Pmodel
+                                            must point at the official 190703-214543 checkpoint directory.
+                                            Smodel is ignored. Use probability thresholds around 0.3.
+                                            "eqtransformer": official EQTransformer (Mousavi et al., 2020).
+                                            Pmodel must point at EqT_original_model.h5 or its directory.
+                                            Smodel is ignored. Requires the tf-keras package. Published
+                                            P/S thresholds for the mseed predictor are 0.1.
+                                        </description>
+                                </parameter>
                                 <parameter name="Pmodel" type="string">
                                         <description>
-                                            EQCCT model to detect P phases.
+                                            Model to detect P phases. Must match the architecture selected in
+                                            "architecture": a plain EQCCT checkpoint for "eqcct", a fine-tuned
+                                            Foundation-EQCCT checkpoint (U-Trans encoder + picking head, combined
+                                            in one file) for "utrans_eqcct", the official PhaseNet checkpoint
+                                            directory for "phasenet", or EqT_original_model.h5 for
+                                            "eqtransformer".
                                         </description>
                                 </parameter>
                                 <parameter name="Smodel" type="string">
                                         <description>
-                                            EQCCT model to detect S phases.
+                                            Model to detect S phases. Same architecture-dependent requirement as
+                                            Pmodel above. Ignored when architecture is "phasenet" or
+                                            "eqtransformer".
                                         </description>
                                 </parameter>
                                 <parameter name="windowLength" type="int" default="60">
@@ -182,7 +208,7 @@
                         <group name="ray">
                                 <parameter name="numCPUs" type="int" default="5">
                                         <description>
-                                            Number of CPUs allocated for running the run_picker() to create the time chunks.
+                                            Size of the Ray CPU pool. This limits how many Python processes run picker work at once. It is not numWorkers.
                                         </description>
                                 </parameter>
                                 <parameter name="maxTasksQueue" type="int" default="50">
@@ -192,7 +218,26 @@
                                 </parameter>
                                 <parameter name="numWorkers" type="int" default="1">
                                         <description>
-                                            Number of groups to split stations. Each group will work in parallel without affecting the others. This helps prevent delays when working with a large number of stations and is usually only required when running more than 100 stations in real time.
+                                            Number of groups to split stations. This partitions the station list. It does not set the number of Ray processes; that is numCPUs.
+                                        </description>
+                                </parameter>
+                                <parameter name="execution" type="string" default="modelactor">
+                                        <description>
+                                            How a station reaches the neural network. Used for eqcct, utrans_eqcct, phasenet and eqtransformer.
+                                            "modelactor": RAPID Model-Actor. Each process loads the picker once and reuses it. Default.
+                                            "task": previous behavior. Every station loads the picker inside a Ray task. Pair with maxCalls.
+                                        </description>
+                                </parameter>
+                                <parameter name="precision" type="string" default="bf16">
+                                        <description>
+                                            Compute precision for every picker.
+                                            "bf16": bfloat16 math, the RAPID precision that was fastest while staying close to float32 picks. Official weights stay float32. Default.
+                                            "fp32": full float32 math.
+                                        </description>
+                                </parameter>
+                                <parameter name="maxCalls" type="int" default="300">
+                                        <description>
+                                            Task execution only. A worker process exits after this many finished stations so its RAM returns to the system. The station in progress is not interrupted. Ignored when execution is "modelactor". 300 stations is about 2.5 hours at the current rate.
                                         </description>
                                 </parameter>
                         </group>

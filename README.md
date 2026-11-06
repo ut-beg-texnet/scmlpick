@@ -2,6 +2,8 @@
 
 **scmlpick** is a SeisComP module integrating the deep learning model EQCCT for real-time seismic phase picking. It enables accurate and low-latency detection in operational networks by combining waveform feature extraction with optimized parallel processing.
 
+This version also runs UTrans, PhaseNet, and EQTransformer. The architecture is selected in the module configuration.
+
 For full documentation, configuration guidelines, and usage examples, please refer to the official module documentation:
 
 👉 [Official Documentation](https://ut-beg-texnet.github.io/scmlpick/)
@@ -47,200 +49,61 @@ This tool represents a significant step forward in integrating state-of-the-art 
 
 ## Installation
 
-## 🛠️ Prerequisites
+SeisComP is installed separately. This repository adds the scmlpick module and the Python predictor.
 
-Before installing and running this module, ensure the following components are properly installed and configured:
+### 1. Install SeisComP
 
----
+Install SeisComP 4.0.0 or newer. This module is run on SeisComP 6. Follow the official instructions:
 
-### 1️⃣ SeisComP System
+https://docs.seiscomp.de/
 
-- **Required**: [SeisComP](https://www.seiscomp.de/)
-- **Minimum version**: `4.0.0`  
-- **Recommended**: `6.0.0` or higher for improved stability and performance.
-
-> ✅ Fully compatible with SeisComP releases ≥ 4.0.0
-
----
-
-### 2️⃣ Operating System
-
-- **Tested on**: `Linux`  
-- **Validated on**: `Ubuntu 22.04 LTS`
-
----
-
-### 3️⃣ Programming Language
-
-- **Python ≥ 3.10**
-
-> ⚠️ Python versions prior to 3.10 (e.g., 3.6) are **not supported** due to incompatibilities with the `ray` library.
-
----
-
-### 4️⃣ Required Python Packages
-
-Ensure the following Python packages are installed:
-
-```bash
-ray
-numpy==1.26.4     # ⚠️ Versions ≥ 2.0 may cause compatibility issues with SeisComP
-pandas
-obspy
-tensorflow
-silence_tensorflow
-```
-
-> 💡 **Tip**: It is strongly recommended to install these packages inside a dedicated virtual environment (e.g., Conda) to avoid dependency conflicts.
-
----
-
-## Predictor Installation
-
-The `scmlpick-predicctor` module must be installed **after** all prerequisites have been configured. The installation procedure depends on whether a virtual environment is being used.
-
----
-
-### ➤ If **NOT** using a virtual environment:
-
-```bash
-cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
-pip3 install -e .
-```
-
----
-
-### ➤ If using a **Conda or other virtual environment**:
-
-1. **Activate your environment**  
-   _(Replace `scmlpick` with your actual environment name)_
-
-   ```bash
-   conda activate scmlpick
-   ```
-
-2. **Navigate to the predictor directory**
-
-   ```bash
-   cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
-   ```
-
-3. **Install the predictor module**
-
-   ```bash
-   pip install -e .
-   ```
-
-> 🔒 **Note**: Installation must be performed *within the activated environment* to ensure all dependencies are correctly registered.
-
-
-## Installation Steps
-
-Follow the steps below to fully install and configure the software:
-
----
-
-### Step 1: Install SeisComP
-
-The SeisComP system must be installed prior to installing this module.
-
-- **Minimum required version**: `4.0.0`  
-- **Strongly recommended**: `6.0.0` or higher
-
-📘 Follow the official installation instructions:  
-[https://docs.seiscomp.de/](https://docs.seiscomp.de/)
-
-✅ Once installed, verify that SeisComP is properly configured and accessible in your environment.
-
----
-
-### Step 2: Clone the Repository
-
-Clone the project repository into any local directory:
+### 2. Clone this repository
 
 ```bash
 git clone https://github.com/ut-beg-texnet/scmlpick.git
+cd scmlpick
 ```
 
----
+### 3. Copy the module into the SeisComP tree
 
-### Step 3: Deploy the Code into SeisComP Installation Directory
-
-Copy all necessary files into your SeisComP installation using `rsync` to preserve the directory structure:
+The module files are under `seiscomp/` in this repository. Copy that directory onto the SeisComP root:
 
 ```bash
-rsync -av /path/to/your-cloned-repository/ /path/to/your-seiscomp-installation/
+rsync -a seiscomp/ "$SEISCOMP_ROOT/"
 ```
 
-- Replace `/path/to/your-cloned-repository/` with the absolute path to your cloned repository.
-- Replace `/path/to/your-seiscomp-installation/` with your SeisComP root (typically `$SEISCOMP_ROOT/`).
+`$SEISCOMP_ROOT` is usually `/opt/seiscomp`.
 
-> ⚠️ This step integrates the module into the SeisComP environment, preserving file structure and permissions.
+Copy the `seiscomp/` directory, not the repository root. Copying the repository root places the binary at `$SEISCOMP_ROOT/seiscomp/bin/scmlpick`, and SeisComP does not look there.
 
----
+`seiscomp/etc/scmlpick.cfg` in this repository is the configuration used on one production host. On another computer, edit the messaging connection, the subscriptions, the model paths, and the profile groups before starting the module.
 
-### Step 4: Install Python Dependencies
+Station bindings, filter files, and region polygons are not stored in this repository. Copy those into `$SEISCOMP_ROOT/share/scmlpick/tools/` on the new computer.
 
-It is **strongly recommended** to use a dedicated Conda environment for installing dependencies.
+The model weights for EQCCT, UTrans, PhaseNet, and EQTransformer are under `seiscomp/share/scmlpick/model/` and are included by the copy above.
 
-1. **Create a new environment (optional)**
+### 4. Install the Python environment used by the service
 
-   ```bash
-   conda create -n scmlpick python=3.10
-   ```
-
-2. **Activate the environment**
-
-   ```bash
-   conda activate scmlpick
-   ```
-
-3. **Install required packages**
-
-   ```bash
-   pip install ray
-   pip install numpy==1.26.4      # ⚠️ Avoid numpy ≥ 2.0 to maintain compatibility
-   pip install pandas
-   pip install obspy
-   pip install tensorflow
-   pip install silence_tensorflow
-   ```
-
----
-
-###  Step 5: Install Predictor Module
-
-The `scmlpick-predicctor` component must be installed **after all dependencies** have been configured.
-
----
-
-#### ➤ If **NOT** using a virtual environment:
+`seiscomp/bin/scmlpick` starts `/opt/seiscomp/share/scmlpick/pyenv/bin/python` when that file exists. Create that environment and install this repository into it. Python 3.10, 3.11, or 3.12 is required, on a glibc Linux system.
 
 ```bash
-cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
-pip3 install -e .
+python3 -m venv /opt/seiscomp/share/scmlpick/pyenv
+/opt/seiscomp/share/scmlpick/pyenv/bin/python -m pip install --upgrade pip
+/opt/seiscomp/share/scmlpick/pyenv/bin/python -m pip install .
 ```
 
----
+Run the last command from the repository root. It installs the predictor and the libraries listed in the root `setup.py`, including NumPy 1.26, ObsPy, Ray, TensorFlow 2.17.0, and tf-keras 2.17.0.
 
-#### ➤ If using a **Conda or other virtual environment**:
+If SeisComP is not installed under `/opt/seiscomp`, create the environment at `$SEISCOMP_ROOT/share/scmlpick/pyenv` and point the `_PY` path at the top of `seiscomp/bin/scmlpick` to that interpreter.
 
-1. **Activate your environment**
+`python3 setup.py --make-env`, also run from the repository root, creates `.venv` inside the repository. That environment is for working on the predictor. The service does not use it.
 
-   ```bash
-   conda activate scmlpick  # Replace 'scmlpick' with your actual environment name
-   ```
+`seiscomp/share/scmlpick/tools/scmlpick-predicctor/setup.py` installs the same package when the current directory is already the deployed SeisComP tree (`pip install -e .` from that directory). A new installation uses the `setup.py` at the repository root.
 
-2. **Navigate to the predictor directory**
+### 5. Enable and start the module
 
-   ```bash
-   cd $SEISCOMP_ROOT/share/scmlpick/tools/scmlpick-predicctor
-   ```
-
-3. **Install the predictor module**
-
-   ```bash
-   pip install -e .
-   ```
-
-> 🔒 **Note**: Make sure to install the module *within* the activated environment to ensure proper linking of dependencies.
+```bash
+seiscomp update-config scmlpick
+seiscomp enable scmlpick
+seiscomp start scmlpick
+```
